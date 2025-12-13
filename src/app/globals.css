@@ -2,26 +2,170 @@
 @tailwind components;
 @tailwind utilities;
 
+/* KanFlow Design System CSS Variables */
 :root {
+  /* Light theme colors */
   --background: #ffffff;
   --foreground: #171717;
+  --surface: #f8f9fa;
+  --surface-hover: #e9ecef;
+  --border: #dee2e6;
+  --border-hover: #ced4da;
+
+  /* KanFlow Brand Colors */
+  --primary-blue: #0079bf;
+  --primary-green: #61bd4f;
+  --primary-red: #eb5a46;
+  --primary-orange: #ff9f43;
+
+  /* Semantic Colors */
+  --success: #61bd4f;
+  --warning: #ff9f43;
+  --danger: #eb5a46;
+  --info: #0079bf;
+
+  /* Priority Colors */
+  --priority-low: #61bd4f;
+  --priority-medium: #f2d600;
+  --priority-high: #ff9f43;
+  --priority-urgent: #eb5a46;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #1a1a1a;
     --foreground: #ededed;
+    --surface: #2a2a2a;
+    --surface-hover: #3a3a3a;
+    --border: #404040;
+    --border-hover: #505050;
+
+    /* Dark theme adjustments for brand colors */
+    --primary-blue: #4a9eff;
+    --primary-green: #7bc97b;
+    --primary-red: #ff7b6b;
+    --primary-orange: #ffb366;
   }
+}
+
+/* Base styles */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Component base styles */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply bg-primary-blue text-white hover:bg-blue-700 focus:ring-primary-blue;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500;
+  }
+
+  .btn-success {
+    @apply bg-success text-white hover:bg-green-600 focus:ring-success;
+  }
+
+  .btn-danger {
+    @apply bg-danger text-white hover:bg-red-600 focus:ring-danger;
+  }
+
+  .input {
+    @apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-blue focus:border-primary-blue transition-colors duration-200;
+  }
+
+  .card {
+    @apply bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200;
+  }
+
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50;
+  }
+
+  .modal-content {
+    @apply bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto;
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* KanFlow specific utilities */
+  .kanflow-gradient {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-green) 100%);
+  }
+
+  .priority-indicator {
+    @apply w-2 h-2 rounded-full flex-shrink-0;
+  }
+
+  .priority-low {
+    @apply bg-priority-low;
+  }
+
+  .priority-medium {
+    @apply bg-priority-medium;
+  }
+
+  .priority-high {
+    @apply bg-priority-high;
+  }
+
+  .priority-urgent {
+    @apply bg-priority-urgent;
+  }
+
+  /* Animation utilities for real-time features */
+  .fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  .slide-in {
+    animation: slideIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideIn {
+    from { transform: translateY(-10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
   }
 }

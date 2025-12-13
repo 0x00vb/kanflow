@@ -94,10 +94,20 @@ Real-Time Collaborative Task Management Board built with NextJS, demonstrating f
    - Health Check: http://localhost:3000/api/health
    - WebSocket: ws://localhost:3000/ws
 
+## 📖 Documentation
+
+- **[UI Design Document](./docs/ui-design.md)** - Comprehensive UI/UX design specifications
+- **[API Documentation](./docs/api-spec.md)** - Complete API endpoint reference
+- **[Architecture Guide](./docs/architecture.md)** - System architecture and design decisions
+
 ## 📁 Project Structure
 
 ```
 kanflow/
+├── docs/
+│   ├── ui-design.md            # UI/UX design specifications
+│   ├── api-spec.md             # API documentation
+│   └── architecture.md         # Architecture guide
 ├── prisma/
 │   └── schema.prisma          # Database schema
 ├── public/                     # Static assets

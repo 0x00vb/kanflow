@@ -79,7 +79,7 @@ export async function strictRateLimitMiddleware(request: NextRequest): Promise<N
 
   try {
     await strictRateLimit.consume(ip)
-    return NextResponse.next()
+    return null // Rate limit not exceeded, allow request to proceed
   } catch (rejRes) {
     logger.warn({ ip, rejRes }, `Strict rate limit exceeded for IP: ${ip}`)
 

@@ -39,7 +39,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
  */
 export function generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
   return jwt.sign(
-    payload as object,
+    payload,
     JWT_SECRET,
     {
       expiresIn: JWT_EXPIRES_IN,

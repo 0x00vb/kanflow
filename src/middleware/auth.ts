@@ -3,7 +3,7 @@ import { verifyToken, extractTokenFromHeader } from '@/lib/auth/jwt'
 import { logger } from '@/lib/logger'
 
 export interface AuthenticatedRequest extends NextRequest {
-  user?: {
+  user: {
     id: string
     email: string
   }
@@ -63,12 +63,12 @@ export function withAuth<T extends unknown[]>(
 /**
  * Optional authentication - doesn't fail if no token
  */
-export async function optionalAuth(request: NextRequest): Promise<AuthenticatedRequest> {
+export async function optionalAuth(request: NextRequest): Promise<AuthenticatedRequest | NextRequest> {
   const authHeader = request.headers.get('authorization')
   const token = extractTokenFromHeader(authHeader)
 
   if (!token) {
-    return request as AuthenticatedRequest
+    return request
   }
 
   try {
@@ -83,7 +83,7 @@ export async function optionalAuth(request: NextRequest): Promise<AuthenticatedR
     // Silently fail for optional auth
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     logger.debug({ error: errorMessage }, 'Optional auth failed, continuing without user')
-    return request as AuthenticatedRequest
+    return request
   }
 }
 

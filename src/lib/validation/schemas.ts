@@ -80,10 +80,6 @@ export const paginationSchema = z.object({
   limit: z.string().transform(val => parseInt(val)).refine(val => val > 0 && val <= 100, 'Limit must be between 1 and 100').optional(),
 })
 
-export const idParamSchema = z.object({
-  id: cuidSchema,
-})
-
 // Type exports
 export type CreateUserInput = z.infer<typeof createUserSchema>
 export type LoginInput = z.infer<typeof loginSchema>

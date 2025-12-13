@@ -67,4 +67,5 @@ export interface EditColumnModalProps {
 
 export interface BoardViewProps {
   boardId: string
+  onBack?: () => void
 }

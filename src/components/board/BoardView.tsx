@@ -17,8 +17,6 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Board, Column, Task } from '@/types'
 import { BoardViewProps } from './types'
-import { TaskCard } from './cards/TaskCard'
-import { DraggableTaskCard } from './cards/DraggableTaskCard'
 import { ColumnComponent } from './columns/ColumnComponent'
 import { CreateTaskModal } from './modals/CreateTaskModal'
 import { TaskDetailModal } from './modals/TaskDetailModal'
@@ -34,7 +32,7 @@ import { EditColumnModal } from './modals/EditColumnModal'
 
 
 
-export const BoardView: React.FC<BoardViewProps> = ({ boardId }) => {
+export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
   const { user } = useAuth()
   const api = useApi()
   const [board, setBoard] = useState<Board | null>(null)
@@ -431,11 +429,21 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId }) => {
       <div className="space-y-6">
         {/* Board Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{board.title}</h1>
-            {board.description && (
-              <p className="text-gray-600 mt-1">{board.description}</p>
+          <div className="flex items-center space-x-4">
+            {onBack && (
+              <Button variant="outline" size="sm" onClick={onBack}>
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back
+              </Button>
             )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{board.title}</h1>
+              {board.description && (
+                <p className="text-gray-600 mt-1">{board.description}</p>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center space-x-4">

@@ -123,9 +123,10 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onClose, on
 
 interface DashboardHomeProps {
   onBoardSelect?: (boardId: string) => void
+  showRecentOnly?: boolean
 }
 
-export const DashboardHome: React.FC<DashboardHomeProps> = ({ onBoardSelect }) => {
+export const DashboardHome: React.FC<DashboardHomeProps> = ({ onBoardSelect, showRecentOnly = false }) => {
   const { user } = useAuth()
   const api = useApi()
   const [boards, setBoards] = useState<(Board & { _count?: { columns: number; members: number } })[]>([])
@@ -210,22 +211,24 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onBoardSelect }) =
 
   return (
     <div className="space-y-8">
-      {/* Welcome Header */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Welcome back, {user?.name?.split(' ')[0] || 'User'}!
+            {showRecentOnly ? 'Recent Boards' : `Welcome back, ${user?.name?.split(' ')[0] || 'User'}!`}
           </h1>
           <p className="text-gray-600 mt-1">
-            Here's what's happening with your projects today.
+            {showRecentOnly ? 'Your recently accessed boards' : "Here's what's happening with your projects today."}
           </p>
         </div>
-        <Button onClick={() => setIsCreateModalOpen(true)}>
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          Create Board
-        </Button>
+        {!showRecentOnly && (
+          <Button onClick={() => setIsCreateModalOpen(true)}>
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Create Board
+          </Button>
+        )}
       </div>
 
       {/* Recent Boards */}

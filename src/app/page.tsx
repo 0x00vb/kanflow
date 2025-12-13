@@ -48,7 +48,7 @@ const LandingPage = () => {
 
 // Dashboard page component for authenticated users
 const DashboardPage = () => {
-  const [currentView, setCurrentView] = useState<'home' | 'board'>('home')
+  const [currentView, setCurrentView] = useState<'home' | 'board' | 'recent' | 'team'>('home')
   const [currentBoardId, setCurrentBoardId] = useState<string>('')
 
   const handleBoardSelect = (boardId: string) => {
@@ -56,18 +56,50 @@ const DashboardPage = () => {
     setCurrentView('board')
   }
 
+  const handleNavigateToHome = () => {
+    setCurrentView('home')
+    setCurrentBoardId('')
+  }
+
+  const handleNavigateToRecent = () => {
+    setCurrentView('recent')
+    setCurrentBoardId('')
+  }
+
+  const handleNavigateToTeam = () => {
+    setCurrentView('team')
+    setCurrentBoardId('')
+  }
+
   const handleBackToHome = () => {
     setCurrentView('home')
     setCurrentBoardId('')
   }
 
+  const renderCurrentView = () => {
+    switch (currentView) {
+      case 'home':
+        return <DashboardHome onBoardSelect={handleBoardSelect} />
+      case 'board':
+        return <BoardView boardId={currentBoardId} onBack={handleBackToHome} />
+      case 'recent':
+        return <DashboardHome onBoardSelect={handleBoardSelect} showRecentOnly />
+      case 'team':
+        return <div className="p-8 text-center">Team management view coming soon...</div>
+      default:
+        return <DashboardHome onBoardSelect={handleBoardSelect} />
+    }
+  }
+
   return (
-    <DashboardLayout>
-      {currentView === 'home' ? (
-        <DashboardHome onBoardSelect={handleBoardSelect} />
-      ) : (
-        <BoardView boardId={currentBoardId} />
-      )}
+    <DashboardLayout
+      currentView={currentView}
+      onNavigateToHome={handleNavigateToHome}
+      onNavigateToRecent={handleNavigateToRecent}
+      onNavigateToTeam={handleNavigateToTeam}
+      onBoardSelect={handleBoardSelect}
+    >
+      {renderCurrentView()}
     </DashboardLayout>
   )
 }

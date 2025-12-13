@@ -1,17 +1,55 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth/context'
+import { useApi } from '@/lib/api/client'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { Board } from '@/types'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
+  currentView?: 'home' | 'board' | 'recent' | 'team'
+  onNavigateToHome?: () => void
+  onNavigateToRecent?: () => void
+  onNavigateToTeam?: () => void
+  onBoardSelect?: (boardId: string) => void
 }
 
-export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
+export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
+  children,
+  currentView = 'home',
+  onNavigateToHome,
+  onNavigateToRecent,
+  onNavigateToTeam,
+  onBoardSelect
+}) => {
   const { user, logout } = useAuth()
+  const api = useApi()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [recentBoards, setRecentBoards] = useState<(Board & { _count?: { columns: number; members: number } })[]>([])
+  const [isLoadingRecent, setIsLoadingRecent] = useState(false)
+
+  const fetchRecentBoards = async () => {
+    if (!user) return
+
+    try {
+      setIsLoadingRecent(true)
+      const result = await api.get('/api/boards')
+      if (result.success) {
+        // Take only the first 5 most recent boards
+        setRecentBoards(result.data?.slice(0, 5) || [])
+      }
+    } catch (error) {
+      console.error('Error fetching recent boards:', error)
+    } finally {
+      setIsLoadingRecent(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchRecentBoards()
+  }, [user])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -80,23 +118,38 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                   <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Workspace</h2>
                 </div>
 
-                <button className="w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg hover:bg-gray-100 transition-colors duration-200">
-                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button
+                  onClick={onNavigateToHome}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors duration-200 ${
+                    currentView === 'home' ? 'bg-primary-blue text-white' : 'hover:bg-gray-100'
+                  }`}
+                >
+                  <svg className={`w-5 h-5 ${currentView === 'home' ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v2H8V5z" />
                   </svg>
                   <span className="text-sm font-medium">Boards</span>
                 </button>
 
-                <button className="w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg hover:bg-gray-100 transition-colors duration-200">
-                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button
+                  onClick={onNavigateToRecent}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors duration-200 ${
+                    currentView === 'recent' ? 'bg-primary-blue text-white' : 'hover:bg-gray-100'
+                  }`}
+                >
+                  <svg className={`w-5 h-5 ${currentView === 'recent' ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <span className="text-sm font-medium">Recent</span>
                 </button>
 
-                <button className="w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg hover:bg-gray-100 transition-colors duration-200">
-                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button
+                  onClick={onNavigateToTeam}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-lg transition-colors duration-200 ${
+                    currentView === 'team' ? 'bg-primary-blue text-white' : 'hover:bg-gray-100'
+                  }`}
+                >
+                  <svg className={`w-5 h-5 ${currentView === 'team' ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                   <span className="text-sm font-medium">Team</span>
@@ -109,33 +162,59 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                 </div>
 
                 <div className="space-y-1">
-                  <div className="px-3 py-2 text-sm text-gray-600 bg-gray-50 rounded-lg">
-                    Product Roadmap
-                  </div>
-                  <div className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg cursor-pointer">
-                    Mobile App
-                  </div>
-                  <div className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg cursor-pointer">
-                    Website Redesign
-                  </div>
+                  {isLoadingRecent ? (
+                    <div className="px-3 py-2 text-sm text-gray-400">
+                      Loading...
+                    </div>
+                  ) : recentBoards.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-gray-400">
+                      No recent boards
+                    </div>
+                  ) : (
+                    recentBoards.map((board) => (
+                      <div
+                        key={board.id}
+                        className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg cursor-pointer truncate"
+                        onClick={() => onBoardSelect?.(board.id)}
+                        title={board.title}
+                      >
+                        {board.title}
+                      </div>
+                    ))
+                  )}
                 </div>
               </>
             )}
 
             {sidebarCollapsed && (
               <div className="space-y-2">
-                <button className="w-full p-2 rounded-lg hover:bg-gray-100">
-                  <svg className="w-5 h-5 mx-auto text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button
+                  onClick={onNavigateToHome}
+                  className={`w-full p-2 rounded-lg transition-colors duration-200 ${
+                    currentView === 'home' ? 'bg-primary-blue' : 'hover:bg-gray-100'
+                  }`}
+                >
+                  <svg className={`w-5 h-5 mx-auto ${currentView === 'home' ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
                   </svg>
                 </button>
-                <button className="w-full p-2 rounded-lg hover:bg-gray-100">
-                  <svg className="w-5 h-5 mx-auto text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button
+                  onClick={onNavigateToRecent}
+                  className={`w-full p-2 rounded-lg transition-colors duration-200 ${
+                    currentView === 'recent' ? 'bg-primary-blue' : 'hover:bg-gray-100'
+                  }`}
+                >
+                  <svg className={`w-5 h-5 mx-auto ${currentView === 'recent' ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </button>
-                <button className="w-full p-2 rounded-lg hover:bg-gray-100">
-                  <svg className="w-5 h-5 mx-auto text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button
+                  onClick={onNavigateToTeam}
+                  className={`w-full p-2 rounded-lg transition-colors duration-200 ${
+                    currentView === 'team' ? 'bg-primary-blue' : 'hover:bg-gray-100'
+                  }`}
+                >
+                  <svg className={`w-5 h-5 mx-auto ${currentView === 'team' ? 'text-white' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </button>

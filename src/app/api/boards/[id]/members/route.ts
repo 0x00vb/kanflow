@@ -6,8 +6,11 @@ import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
 import { z } from 'zod'
 
+// CUID validation
+const cuidSchema = z.string().regex(/^[a-z][a-z0-9]{24}$/i, 'Invalid user ID')
+
 const addMemberSchema = z.object({
-  userId: z.string().uuid('Invalid user ID'),
+  userId: cuidSchema,
   role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']).default('MEMBER'),
 })
 

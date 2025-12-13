@@ -31,14 +31,22 @@ export const columnSchema = z.object({
   position: z.number().int().min(0),
 })
 
+// Custom CUID validation
+const cuidSchema = z.string().regex(/^[a-z][a-z0-9]{24}$/i, 'Invalid ID format')
+
 // Task schemas
 export const taskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
   description: z.string().max(2000, 'Description too long').optional(),
-  assigneeId: z.string().uuid('Invalid assignee ID').optional(),
+  assigneeId: cuidSchema.optional(),
   dueDate: z.string().datetime('Invalid due date').optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM'),
   labels: z.array(z.string()).default([]),
+})
+
+// Update idParamSchema to use CUID
+export const idParamSchema = z.object({
+  id: cuidSchema,
 })
 
 export const updateTaskSchema = taskSchema.partial()
@@ -73,7 +81,7 @@ export const paginationSchema = z.object({
 })
 
 export const idParamSchema = z.object({
-  id: z.string().uuid('Invalid ID format'),
+  id: cuidSchema,
 })
 
 // Type exports

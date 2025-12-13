@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth/context'
+import { useApi, securityUtils } from '@/lib/api/client'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
@@ -126,10 +127,12 @@ interface DashboardHomeProps {
 
 export const DashboardHome: React.FC<DashboardHomeProps> = ({ onBoardSelect }) => {
   const { user } = useAuth()
+  const api = useApi()
   const [boards, setBoards] = useState<(Board & { _count?: { columns: number; members: number } })[]>([])
   const [recentActivity, setRecentActivity] = useState<Activity[]>([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchBoards()
@@ -137,13 +140,16 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onBoardSelect }) =
 
   const fetchBoards = async () => {
     try {
-      const response = await fetch('/api/boards')
-      if (response.ok) {
-        const data = await response.json()
-        setBoards(data.data || [])
+      setError(null)
+      const result = await api.get('/api/boards')
+      if (result.success) {
+        setBoards(result.data || [])
+      } else {
+        setError(result.error || 'Failed to fetch boards')
       }
     } catch (error) {
       console.error('Error fetching boards:', error)
+      setError(error instanceof Error ? error.message : 'Failed to fetch boards')
     } finally {
       setIsLoading(false)
     }
@@ -151,19 +157,25 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onBoardSelect }) =
 
   const handleCreateBoard = async (boardData: { title: string; description?: string; isPublic: boolean }) => {
     try {
-      const response = await fetch('/api/boards', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(boardData),
-      })
+      setError(null)
 
-      if (response.ok) {
+      // Sanitize input for security
+      const sanitizedData = {
+        title: securityUtils.sanitizeInput(boardData.title),
+        description: boardData.description ? securityUtils.sanitizeInput(boardData.description) : undefined,
+        isPublic: boardData.isPublic,
+      }
+
+      const result = await api.post('/api/boards', sanitizedData)
+
+      if (result.success) {
         await fetchBoards() // Refresh the boards list
+      } else {
+        setError(result.error || 'Failed to create board')
       }
     } catch (error) {
       console.error('Error creating board:', error)
+      setError(error instanceof Error ? error.message : 'Failed to create board')
     }
   }
 
@@ -175,6 +187,23 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onBoardSelect }) =
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-blue"></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Error</h2>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <Button onClick={() => fetchBoards()}>
+          Try Again
+        </Button>
       </div>
     )
   }

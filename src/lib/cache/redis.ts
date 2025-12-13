@@ -39,6 +39,8 @@ export const CACHE_KEYS = {
   BOARD_ACTIVITY: (id: string) => `board:${id}:activity`,
   USER_BOARDS: (id: string) => `user:${id}:boards`,
   BOARD_MEMBERS: (id: string) => `board:${id}:members`,
+  USER_SEARCH: (userId: string, query: string, boardId?: string) =>
+    `user_search:${userId}:${query}:${boardId || 'global'}`,
 } as const
 
 // Cache TTL constants (in seconds)
@@ -47,6 +49,7 @@ export const CACHE_TTL = {
   BOARD_ACTIVITY: 60, // 1 minute
   USER_BOARDS: 600, // 10 minutes
   BOARD_MEMBERS: 900, // 15 minutes
+  USER_SEARCH: 300, // 5 minutes
 } as const
 
 // Pub/Sub channel constants

@@ -50,63 +50,69 @@ export const POST = withAuth(async (request: NextRequest, { params }: { params: 
 
     const { userId: newMemberId, role } = validationResult.data
 
-    // Verify the user to be added exists
-    const userToAdd = await prisma.user.findUnique({
-      where: { id: newMemberId },
-      select: { id: true, name: true, email: true },
-    })
+    // Use database transaction to prevent race conditions
+    const boardMember = await prisma.$transaction(async (tx) => {
+      // Verify the user to be added exists
+      const userToAdd = await tx.user.findUnique({
+        where: { id: newMemberId },
+        select: { id: true, name: true, email: true },
+      })
 
-    if (!userToAdd) {
-      metrics.httpRequestsTotal.inc({ method: 'POST', route: '/api/boards/[id]/members', status_code: '404' })
+      if (!userToAdd) {
+        throw new Error('USER_NOT_FOUND')
+      }
 
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
-    }
-
-    // Check if user is already a member
-    const existingMember = await prisma.boardMember.findUnique({
-      where: {
-        boardId_userId: {
-          boardId,
-          userId: newMemberId,
-        },
-      },
-    })
-
-    if (existingMember) {
-      metrics.httpRequestsTotal.inc({ method: 'POST', route: '/api/boards/[id]/members', status_code: '409' })
-
-      return NextResponse.json(
-        { error: 'User is already a member of this board' },
-        { status: 409 }
-      )
-    }
-
-    // Add member to board
-    const boardMember = await prisma.boardMember.create({
-      data: {
-        boardId,
-        userId: newMemberId,
-        role,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatar: true,
+      // Check if user is already a member (atomic check within transaction)
+      const existingMember = await tx.boardMember.findUnique({
+        where: {
+          boardId_userId: {
+            boardId,
+            userId: newMemberId,
           },
         },
-      },
+      })
+
+      if (existingMember) {
+        throw new Error('USER_ALREADY_MEMBER')
+      }
+
+      // Add member to board
+      return await tx.boardMember.create({
+        data: {
+          boardId,
+          userId: newMemberId,
+          role,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatar: true,
+            },
+          },
+        },
+      })
+    }, {
+      maxWait: 5000, // 5 second timeout
+      timeout: 10000, // 10 second transaction timeout
     })
 
     // Invalidate caches
     await redisClient.del(CACHE_KEYS.BOARD(boardId))
     await redisClient.del(CACHE_KEYS.BOARD_MEMBERS(boardId))
     await redisClient.del(CACHE_KEYS.USER_BOARDS(newMemberId))
+
+    // Publish WebSocket event for real-time updates
+    const memberEvent = {
+      type: 'member:added',
+      data: boardMember,
+      timestamp: Date.now(),
+      boardId,
+    }
+
+    await redisClient.publish(PUBSUB_CHANNELS.BOARD_UPDATES(boardId), JSON.stringify(memberEvent))
 
     const responseTime = Date.now() - startTime
 
@@ -126,6 +132,35 @@ export const POST = withAuth(async (request: NextRequest, { params }: { params: 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
     logger.error({ error: errorMessage, userId, boardId, responseTime }, 'Failed to add board member')
+
+    // Handle specific transaction errors
+    if (errorMessage === 'USER_NOT_FOUND') {
+      metrics.httpRequestsTotal.inc({ method: 'POST', route: '/api/boards/[id]/members', status_code: '404' })
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    if (errorMessage === 'USER_ALREADY_MEMBER') {
+      metrics.httpRequestsTotal.inc({ method: 'POST', route: '/api/boards/[id]/members', status_code: '409' })
+      return NextResponse.json(
+        { error: 'User is already a member of this board' },
+        { status: 409 }
+      )
+    }
+
+    // Handle transaction timeout
+    if (errorMessage.includes('Transaction') || errorMessage.includes('timeout')) {
+      metrics.httpRequestsTotal.inc({ method: 'POST', route: '/api/boards/[id]/members', status_code: '503' })
+      return NextResponse.json(
+        {
+          error: 'Service temporarily unavailable',
+          message: 'Please try again in a moment',
+        },
+        { status: 503 }
+      )
+    }
 
     metrics.httpRequestsTotal.inc({ method: 'POST', route: '/api/boards/[id]/members', status_code: '500' })
 

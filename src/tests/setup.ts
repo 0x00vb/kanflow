@@ -64,6 +64,47 @@ jest.mock('@/lib/database/prisma', () => ({
   },
 }))
 
+// Test helper functions
+export const createTestUser = async (email = 'test@example.com', name = 'Test User') => {
+  const { prisma } = require('@/lib/database/prisma')
+  return await prisma.user.create({
+    data: {
+      email,
+      name,
+      password: 'hashedpassword',
+    },
+  })
+}
+
+export const createTestBoard = async (ownerId: string, title = 'Test Board') => {
+  const { prisma } = require('@/lib/database/prisma')
+  return await prisma.board.create({
+    data: {
+      title,
+      description: 'Test board description',
+      ownerId,
+    },
+  })
+}
+
+export const createTestMember = async (boardId: string, userId: string, role = 'MEMBER') => {
+  const { prisma } = require('@/lib/database/prisma')
+  return await prisma.boardMember.create({
+    data: {
+      boardId,
+      userId,
+      role,
+    },
+  })
+}
+
+export const cleanupTestData = async () => {
+  const { prisma } = require('@/lib/database/prisma')
+  await prisma.boardMember.deleteMany({})
+  await prisma.board.deleteMany({})
+  await prisma.user.deleteMany({})
+}
+
 // Global test utilities
 global.beforeEach(() => {
   jest.clearAllMocks()

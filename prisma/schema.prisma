@@ -23,6 +23,9 @@ model User {
   comments    Comment[]
   activities  Activity[]
 
+  // Full-text search indexes for user search functionality
+  @@index([name])
+  @@index([email])
   @@map("users")
 }
 

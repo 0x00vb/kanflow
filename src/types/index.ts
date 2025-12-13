@@ -78,6 +78,11 @@ export interface TaskEvent extends WebSocketEvent {
   data: Task | { id: string } | { id: string; columnId: string; position: number }
 }
 
+export interface MemberEvent extends WebSocketEvent {
+  type: 'member:added' | 'member:removed' | 'member:updated'
+  data: BoardMemberWithUser | { userId: string }
+}
+
 // Cache types
 export interface CacheEntry<T> {
   data: T

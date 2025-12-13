@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
-import { useSortable } from '@dnd-kit/sortable'
+import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { DraggableTaskCardProps } from '../types'
 
@@ -12,13 +12,11 @@ export const DraggableTaskCard: React.FC<DraggableTaskCardProps> = ({ task, onCl
     listeners,
     setNodeRef,
     transform,
-    transition,
-    isDragging: isSortableDragging,
-  } = useSortable({ id: task.id })
+    isDragging: isDraggableDragging,
+  } = useDraggable({ id: task.id })
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
   }
 
   return (
@@ -26,7 +24,7 @@ export const DraggableTaskCard: React.FC<DraggableTaskCardProps> = ({ task, onCl
       <Card
         hover
         className={`cursor-grab active:cursor-grabbing mb-3 last:mb-0 min-h-11 ${
-          isSortableDragging ? 'opacity-50' : ''
+          isDraggableDragging ? 'opacity-50' : ''
         } ${isDragging ? 'rotate-2 shadow-lg' : ''}`}
         onClick={onClick}
       >

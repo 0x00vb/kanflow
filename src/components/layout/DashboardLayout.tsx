@@ -106,12 +106,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         </div>
       </header>
 
-      <div className="flex">
+      <div className="flex flex-1">
         {/* Sidebar */}
-        <aside className={`bg-white border-r border-gray-200 transition-all duration-300 ${
+        <aside className={`bg-white border-r border-gray-200 transition-all duration-300 h-full ${
           sidebarCollapsed ? 'w-16' : 'w-64'
         }`}>
-          <nav className="p-4 space-y-2">
+          <nav className="p-4 space-y-2 h-full overflow-y-auto">
             {!sidebarCollapsed && (
               <>
                 <div className="mb-6">
@@ -224,7 +224,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-6 h-full overflow-y-auto">
           {children}
         </main>
       </div>

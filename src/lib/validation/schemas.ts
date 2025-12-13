@@ -44,12 +44,15 @@ export const taskSchema = z.object({
   labels: z.array(z.string()).default([]),
 })
 
+// Create a separate schema for updates that includes columnId
+export const updateTaskSchema = taskSchema.partial().extend({
+  columnId: cuidSchema.optional(),
+})
+
 // Update idParamSchema to use CUID
 export const idParamSchema = z.object({
   id: cuidSchema,
 })
-
-export const updateTaskSchema = taskSchema.partial()
 
 // Comment schemas
 export const commentSchema = z.object({

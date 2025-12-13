@@ -1,13 +1,23 @@
 'use client'
 
 import React from 'react'
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useDroppable } from '@dnd-kit/core'
 import { Button } from '@/components/ui/Button'
 import { DraggableTaskCard } from '../cards/DraggableTaskCard'
 import { ColumnComponentProps } from '../types'
 
-export const ColumnComponent: React.FC<ColumnComponentProps> = ({ column, onAddTask, onTaskClick, onEditColumn }) => (
-  <div className="bg-gray-100 rounded-lg p-4 w-full md:min-w-80 md:max-w-80">
+export const ColumnComponent: React.FC<ColumnComponentProps> = ({ column, onAddTask, onTaskClick, onEditColumn }) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.id,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`bg-gray-100 rounded-lg p-4 w-full md:min-w-80 md:max-w-80 transition-colors ${
+        isOver ? 'bg-blue-50 border-2 border-blue-300' : ''
+      }`}
+    >
     <div className="flex items-center justify-between mb-4">
       <h3 className="font-semibold text-gray-900 text-sm md:text-base">{column.title}</h3>
       <div className="flex items-center space-x-2">
@@ -26,7 +36,6 @@ export const ColumnComponent: React.FC<ColumnComponentProps> = ({ column, onAddT
     </div>
 
     <div className="space-y-3 min-h-32">
-      <SortableContext items={column.tasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
         {column.tasks.map((task) => (
           <DraggableTaskCard
             key={task.id}
@@ -34,7 +43,6 @@ export const ColumnComponent: React.FC<ColumnComponentProps> = ({ column, onAddT
             onClick={() => onTaskClick(task)}
           />
         ))}
-      </SortableContext>
     </div>
 
     <Button
@@ -49,3 +57,4 @@ export const ColumnComponent: React.FC<ColumnComponentProps> = ({ column, onAddT
     </Button>
   </div>
 )
+}

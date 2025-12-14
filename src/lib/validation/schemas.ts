@@ -54,6 +54,15 @@ export const idParamSchema = z.object({
   id: cuidSchema,
 })
 
+export const addMemberSchema = z.object({
+  userId: cuidSchema,
+  role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']).default('MEMBER'),
+})
+
+export const updateMemberSchema = z.object({
+  role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']),
+})
+
 // Comment schemas
 export const commentSchema = z.object({
   content: z.string().min(1, 'Comment cannot be empty').max(1000, 'Comment too long'),

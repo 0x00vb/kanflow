@@ -39,14 +39,14 @@ export const MemberManagementModal: React.FC<MemberManagementModalProps> = ({
 
   // Check if current user can manage members (ADMIN or OWNER)
   const canManageMembers = React.useMemo(() => {
-    const currentMember = localMembers.find(m => m.userId === currentUser?.id)
-    return currentMember?.role === 'OWNER' || currentMember?.role === 'ADMIN'
+    const currentMember = localMembers.find(m => m.user.id === currentUser?.id)
+    return !!currentMember && (currentMember.role === 'OWNER' || currentMember.role === 'ADMIN')
   }, [localMembers, currentUser])
 
   // Check if current user can change roles (only OWNER)
   const canChangeRoles = React.useMemo(() => {
-    const currentMember = localMembers.find(m => m.userId === currentUser?.id)
-    return currentMember?.role === 'OWNER'
+    const currentMember = localMembers.find(m => m.user.id === currentUser?.id)
+    return !!currentMember && currentMember.role === 'OWNER'
   }, [localMembers, currentUser])
 
   const handleAddMember = useCallback(async (user: User, role: MemberRole = 'MEMBER') => {
@@ -62,13 +62,10 @@ export const MemberManagementModal: React.FC<MemberManagementModalProps> = ({
       })
 
       if (result.success) {
-        const newMember: BoardMemberWithUser = {
-          id: result.data.id,
-          boardId,
-          userId: user.id,
-          role,
+        const newMember = {
+          ...result.data,
           user,
-        }
+        } as BoardMemberWithUser
 
         const updatedMembers = [...localMembers, newMember]
         setLocalMembers(updatedMembers)
@@ -89,7 +86,7 @@ export const MemberManagementModal: React.FC<MemberManagementModalProps> = ({
 
     // Prevent removing yourself if you're the last owner
     const ownerCount = localMembers.filter(m => m.role === 'OWNER').length
-    if (member.userId === currentUser?.id && ownerCount <= 1) {
+    if (member.user.id === currentUser?.id && ownerCount <= 1) {
       setError('Cannot remove yourself as the last owner')
       return
     }
@@ -98,10 +95,10 @@ export const MemberManagementModal: React.FC<MemberManagementModalProps> = ({
     setError(null)
 
     try {
-      const result = await api.delete(`/api/boards/${boardId}/members/${member.userId}`)
+      const result = await api.delete(`/api/boards/${boardId}/members/${member.user.id}`)
 
       if (result.success) {
-        const updatedMembers = localMembers.filter(m => m.id !== member.id)
+        const updatedMembers = localMembers.filter(m => m.user.id !== member.user.id)
         setLocalMembers(updatedMembers)
         onMembersChange?.(updatedMembers)
       } else {
@@ -122,13 +119,13 @@ export const MemberManagementModal: React.FC<MemberManagementModalProps> = ({
     setError(null)
 
     try {
-      const result = await api.put(`/api/boards/${boardId}/members/${member.userId}`, {
+      const result = await api.put(`/api/boards/${boardId}/members/${member.user.id}`, {
         role: newRole,
       })
 
       if (result.success) {
         const updatedMembers = localMembers.map(m =>
-          m.id === member.id
+          m.user.id === member.user.id
             ? { ...m, role: newRole }
             : m
         )
@@ -182,7 +179,7 @@ export const MemberManagementModal: React.FC<MemberManagementModalProps> = ({
             <UserSearch
               boardId={boardId}
               onUserSelect={handleAddMember}
-              excludeUserIds={localMembers.map(m => m.userId)}
+              excludeUserIds={localMembers.map(m => m.user.id)}
               disabled={isLoading}
             />
           </div>
@@ -197,7 +194,7 @@ export const MemberManagementModal: React.FC<MemberManagementModalProps> = ({
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {localMembers.map((member) => (
               <div
-                key={member.id}
+                key={member.user.id}
                 className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <div className="flex items-center space-x-3">
@@ -221,7 +218,7 @@ export const MemberManagementModal: React.FC<MemberManagementModalProps> = ({
                     <div className="flex items-center space-x-2">
                       <span className="font-medium text-gray-900">
                         {member.user.name}
-                        {member.userId === currentUser?.id && (
+                        {member.user.id === currentUser?.id && (
                           <span className="text-xs text-gray-500 ml-2">(You)</span>
                         )}
                       </span>
@@ -236,7 +233,7 @@ export const MemberManagementModal: React.FC<MemberManagementModalProps> = ({
                     <MemberRoleSelector
                       value={member.role}
                       onChange={(newRole) => handleRoleChange(member, newRole)}
-                      disabled={isLoading || member.userId === currentUser?.id}
+                      disabled={isLoading || member.user.id === currentUser?.id}
                       canChangeTo={['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']}
                     />
                   ) : (
@@ -246,7 +243,7 @@ export const MemberManagementModal: React.FC<MemberManagementModalProps> = ({
                   )}
 
                   {/* Remove Button */}
-                  {canManageMembers && member.userId !== currentUser?.id && (
+                  {canManageMembers && member.user.id !== currentUser?.id && (
                     <Button
                       variant="outline"
                       size="sm"

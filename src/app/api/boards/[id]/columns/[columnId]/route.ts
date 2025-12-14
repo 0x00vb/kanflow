@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
-import { redisClient, CACHE_KEYS } from '@/lib/cache/redis'
+import { redisClient, CACHE_KEYS, PUBSUB_CHANNELS } from '@/lib/cache/redis'
 import { columnSchema } from '@/lib/validation/schemas'
+import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
 
 // PUT /api/boards/[id]/columns/[columnId] - Update column
-export const PUT = withAuth(async (request: NextRequest, { params }: { params: { id: string; columnId: string } }) => {
+export const PUT = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string; columnId: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const boardId = params.id
   const columnId = params.columnId
 
@@ -118,6 +120,16 @@ export const PUT = withAuth(async (request: NextRequest, { params }: { params: {
     await redisClient.del(CACHE_KEYS.BOARD(boardId))
     await redisClient.del(CACHE_KEYS.USER_BOARDS(userId))
 
+    // Publish WebSocket event for real-time updates
+    const columnEvent = {
+      type: 'column:updated',
+      data: updatedColumn,
+      timestamp: Date.now(),
+      boardId,
+    }
+
+    await redisClient.publish(PUBSUB_CHANNELS.BOARD_UPDATES(boardId), JSON.stringify(columnEvent))
+
     const responseTime = Date.now() - startTime
 
     metrics.httpRequestsTotal.inc({ method: 'PUT', route: '/api/boards/[id]/columns/[columnId]', status_code: '200' })
@@ -150,9 +162,10 @@ export const PUT = withAuth(async (request: NextRequest, { params }: { params: {
 })
 
 // DELETE /api/boards/[id]/columns/[columnId] - Delete column
-export const DELETE = withAuth(async (request: NextRequest, { params }: { params: { id: string; columnId: string } }) => {
+export const DELETE = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string; columnId: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const boardId = params.id
   const columnId = params.columnId
 
@@ -208,6 +221,16 @@ export const DELETE = withAuth(async (request: NextRequest, { params }: { params
     // Invalidate board cache
     await redisClient.del(CACHE_KEYS.BOARD(boardId))
     await redisClient.del(CACHE_KEYS.USER_BOARDS(userId))
+
+    // Publish WebSocket event for real-time updates
+    const columnEvent = {
+      type: 'column:deleted',
+      data: { columnId },
+      timestamp: Date.now(),
+      boardId,
+    }
+
+    await redisClient.publish(PUBSUB_CHANNELS.BOARD_UPDATES(boardId), JSON.stringify(columnEvent))
 
     const responseTime = Date.now() - startTime
 

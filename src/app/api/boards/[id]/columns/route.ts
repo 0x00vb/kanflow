@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
-import { redisClient, CACHE_KEYS } from '@/lib/cache/redis'
+import { redisClient, CACHE_KEYS, PUBSUB_CHANNELS } from '@/lib/cache/redis'
 import { columnSchema } from '@/lib/validation/schemas'
+import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
 
 // GET /api/boards/[id]/columns - List board columns
-export const GET = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const GET = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const boardId = params.id
 
   try {
@@ -70,9 +72,10 @@ export const GET = withAuth(async (request: NextRequest, { params }: { params: {
 })
 
 // POST /api/boards/[id]/columns - Create column
-export const POST = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const POST = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const boardId = params.id
 
   try {
@@ -149,6 +152,16 @@ export const POST = withAuth(async (request: NextRequest, { params }: { params: 
     // Invalidate board cache
     await redisClient.del(CACHE_KEYS.BOARD(boardId))
     await redisClient.del(CACHE_KEYS.USER_BOARDS(userId))
+
+    // Publish WebSocket event for real-time updates
+    const columnEvent = {
+      type: 'column:created',
+      data: column,
+      timestamp: Date.now(),
+      boardId,
+    }
+
+    await redisClient.publish(PUBSUB_CHANNELS.BOARD_UPDATES(boardId), JSON.stringify(columnEvent))
 
     const responseTime = Date.now() - startTime
 

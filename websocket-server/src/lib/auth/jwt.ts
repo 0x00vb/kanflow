@@ -1,8 +1,8 @@
-import jwt, { Secret } from 'jsonwebtoken'
+import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { v4 as uuidv4 } from 'uuid'
 
-const JWT_SECRET: Secret = process.env.JWT_SECRET || 'fallback-secret-key'
+const JWT_SECRET: jwt.Secret = process.env.JWT_SECRET || 'fallback-secret-key'
 const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d'
 
 export interface JWTPayload {
@@ -38,7 +38,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
  * Generate a JWT token for a user
  */
 export function generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
-  return jwt.sign(payload, JWT_SECRET as string, {
+  return jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
     issuer: 'kanflow',
     audience: 'kanflow-users',

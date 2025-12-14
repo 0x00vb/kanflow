@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
+import { redisClient, CACHE_KEYS } from '@/lib/cache/redis'
+import { taskSchema } from '@/lib/validation/schemas'
+import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
 
 // GET /api/boards/[id]/tasks - List all board tasks
-export const GET = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const GET = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const boardId = params.id
 
   try {

@@ -1,39 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, extractTokenFromHeader } from '@/lib/auth/jwt'
+import { getUserFromRequest, JWTPayload } from '@/lib/auth'
 import { logger } from '@/lib/logger'
+import { prisma } from '@/lib/database'
 
 export interface AuthenticatedRequest extends NextRequest {
-  user: {
-    id: string
-    email: string
-  }
+  user: JWTPayload
 }
 
 /**
  * Authentication middleware for API routes
  */
-export async function authenticateRequest(request: NextRequest): Promise<AuthenticatedRequest> {
-  const authHeader = request.headers.get('authorization')
-  const token = extractTokenFromHeader(authHeader)
-
-  if (!token) {
-    throw new Error('No authentication token provided')
-  }
-
+export function authenticateRequest(request: NextRequest): AuthenticatedRequest {
   try {
-    const payload = verifyToken(token)
-
-    // Add user to request object
+    const user = getUserFromRequest(request as AuthenticatedRequest)
     const authenticatedRequest = request as AuthenticatedRequest
-    authenticatedRequest.user = {
-      id: payload.userId,
-      email: payload.email,
-    }
-
+    authenticatedRequest.user = user
     return authenticatedRequest
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    logger.warn({ error: errorMessage, token: token.substring(0, 20) + '...' }, 'Authentication failed')
+    logger.warn({ error: errorMessage }, 'Authentication failed')
     throw new Error('Invalid or expired token')
   }
 }
@@ -44,10 +29,10 @@ export async function authenticateRequest(request: NextRequest): Promise<Authent
 export function withAuth<T extends unknown[]>(
   handler: (request: AuthenticatedRequest, ...args: T) => Promise<Response> | Response
 ) {
-  return async (request: NextRequest, ...args: T): Promise<Response> => {
+  return (request: NextRequest, ...args: T): Promise<Response> | Response => {
     try {
-      const authenticatedRequest = await authenticateRequest(request)
-      return await handler(authenticatedRequest, ...args)
+      const authenticatedRequest = authenticateRequest(request)
+      return handler(authenticatedRequest, ...args)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       logger.error({ error: errorMessage }, 'Authentication middleware error')
@@ -63,21 +48,11 @@ export function withAuth<T extends unknown[]>(
 /**
  * Optional authentication - doesn't fail if no token
  */
-export async function optionalAuth(request: NextRequest): Promise<AuthenticatedRequest | NextRequest> {
-  const authHeader = request.headers.get('authorization')
-  const token = extractTokenFromHeader(authHeader)
-
-  if (!token) {
-    return request
-  }
-
+export function optionalAuth(request: NextRequest): AuthenticatedRequest | NextRequest {
   try {
-    const payload = verifyToken(token)
+    const user = getUserFromRequest(request as AuthenticatedRequest)
     const authenticatedRequest = request as AuthenticatedRequest
-    authenticatedRequest.user = {
-      id: payload.userId,
-      email: payload.email,
-    }
+    authenticatedRequest.user = user
     return authenticatedRequest
   } catch (error) {
     // Silently fail for optional auth
@@ -96,8 +71,6 @@ export async function checkPermission(
   resourceId: string,
   requiredRole?: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'
 ): Promise<boolean> {
-  const { prisma } = await import('@/lib/database/prisma')
-
   try {
     if (resourceType === 'board') {
       const membership = await prisma.boardMember.findUnique({

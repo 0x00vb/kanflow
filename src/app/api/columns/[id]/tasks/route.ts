@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
-import { redisClient, CACHE_KEYS } from '@/lib/cache/redis'
+import { redisClient, CACHE_KEYS, PUBSUB_CHANNELS } from '@/lib/cache/redis'
 import { taskSchema } from '@/lib/validation/schemas'
+import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
 
 // GET /api/columns/[id]/tasks - List column tasks
-export const GET = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const GET = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const columnId = params.id
 
   try {
@@ -107,9 +109,10 @@ export const GET = withAuth(async (request: NextRequest, { params }: { params: {
 })
 
 // POST /api/columns/[id]/tasks - Create task
-export const POST = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const POST = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const columnId = params.id
 
   try {
@@ -239,6 +242,16 @@ export const POST = withAuth(async (request: NextRequest, { params }: { params: 
     // Invalidate board cache
     await redisClient.del(CACHE_KEYS.BOARD(column.boardId))
     await redisClient.del(CACHE_KEYS.USER_BOARDS(userId))
+
+    // Publish WebSocket event for real-time updates
+    const taskEvent = {
+      type: 'task:created',
+      data: task,
+      timestamp: Date.now(),
+      boardId: column.boardId,
+    }
+
+    await redisClient.publish(PUBSUB_CHANNELS.BOARD_UPDATES(column.boardId), JSON.stringify(taskEvent))
 
     const responseTime = Date.now() - startTime
 

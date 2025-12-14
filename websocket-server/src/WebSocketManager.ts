@@ -1,10 +1,10 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import { IncomingMessage } from 'http'
-import { redisClient, PUBSUB_CHANNELS } from '@/lib/cache/redis'
-import { logger } from '@/lib/logger'
-import { metrics } from '@/lib/metrics'
-import { verifyToken } from '@/lib/auth/jwt'
-import { WSMessage } from '@/lib/validation/schemas'
+import { redisClient, PUBSUB_CHANNELS } from './lib/cache/redis'
+import { logger } from './lib/logger'
+import { metrics } from './lib/metrics'
+import { verifyToken } from './lib/auth/jwt'
+import { WSMessage } from './lib/validation/schemas'
 
 interface ExtendedWebSocket extends WebSocket {
   userId?: string
@@ -18,7 +18,7 @@ interface ConnectedClient {
   boardId: string
 }
 
-class WebSocketManager {
+export class WebSocketManager {
   private wss: WebSocketServer | null = null
   private clients: Map<string, ConnectedClient> = new Map()
   private boardConnections: Map<string, Set<ExtendedWebSocket>> = new Map()

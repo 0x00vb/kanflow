@@ -8,17 +8,17 @@ declare global {
 let redisClient: RedisClientType
 
 if (!global.redis) {
+  // Only set password if it's provided and non-empty
+  const redisPassword = process.env.REDIS_PASSWORD?.trim();
   const redisOptions: any = {
     url: process.env.REDIS_URL,
   };
 
-  // Only set password if it's provided and non-empty
-  const redisPassword = process.env.REDIS_PASSWORD?.trim();
   if (redisPassword && redisPassword.length > 0) {
     redisOptions.password = redisPassword;
   }
 
-  redisClient = createClient(redisOptions);
+  redisClient = createClient(redisOptions)
 
   redisClient.on('error', (err) => {
     console.error('Redis Client Error:', err)

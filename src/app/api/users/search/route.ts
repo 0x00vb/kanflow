@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
 import { redisClient, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
+import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
@@ -27,7 +28,7 @@ const RATE_LIMIT_MAX_REQUESTS = 10
 // GET /api/users/search?q={query}&boardId={boardId}&limit={limit}
 export const GET = withAuth(async (request: NextRequest) => {
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
 
   try {
     // Rate limiting check with atomic Redis operations

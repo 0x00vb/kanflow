@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
-import { redisClient, CACHE_KEYS } from '@/lib/cache/redis'
+import { redisClient, CACHE_KEYS, PUBSUB_CHANNELS } from '@/lib/cache/redis'
 import { updateTaskSchema } from '@/lib/validation/schemas'
+import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
 
 // GET /api/tasks/[id] - Get task details
-export const GET = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const GET = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const taskId = params.id
 
   try {
@@ -110,9 +112,10 @@ export const GET = withAuth(async (request: NextRequest, { params }: { params: {
 })
 
 // PUT /api/tasks/[id] - Update task
-export const PUT = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const PUT = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const taskId = params.id
 
   try {
@@ -244,6 +247,16 @@ export const PUT = withAuth(async (request: NextRequest, { params }: { params: {
     await redisClient.del(CACHE_KEYS.BOARD(currentTask.column.boardId))
     await redisClient.del(CACHE_KEYS.USER_BOARDS(userId))
 
+    // Publish WebSocket event for real-time updates
+    const taskEvent = {
+      type: 'task:updated',
+      data: task,
+      timestamp: Date.now(),
+      boardId: currentTask.column.boardId,
+    }
+
+    await redisClient.publish(PUBSUB_CHANNELS.BOARD_UPDATES(currentTask.column.boardId), JSON.stringify(taskEvent))
+
     const responseTime = Date.now() - startTime
 
     metrics.httpRequestsTotal.inc({ method: 'PUT', route: '/api/tasks/[id]', status_code: '200' })
@@ -276,9 +289,10 @@ export const PUT = withAuth(async (request: NextRequest, { params }: { params: {
 })
 
 // DELETE /api/tasks/[id] - Delete task
-export const DELETE = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const DELETE = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const taskId = params.id
 
   try {
@@ -322,6 +336,16 @@ export const DELETE = withAuth(async (request: NextRequest, { params }: { params
     // Invalidate board cache
     await redisClient.del(CACHE_KEYS.BOARD(currentTask.column.boardId))
     await redisClient.del(CACHE_KEYS.USER_BOARDS(userId))
+
+    // Publish WebSocket event for real-time updates
+    const taskEvent = {
+      type: 'task:deleted',
+      data: { taskId },
+      timestamp: Date.now(),
+      boardId: currentTask.column.boardId,
+    }
+
+    await redisClient.publish(PUBSUB_CHANNELS.BOARD_UPDATES(currentTask.column.boardId), JSON.stringify(taskEvent))
 
     const responseTime = Date.now() - startTime
 

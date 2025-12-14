@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
 import { redisClient, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
 import { boardSchema } from '@/lib/validation/schemas'
+import { getUserFromRequest } from '@/lib/auth'
 import { withAuth } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
@@ -9,7 +10,7 @@ import { metrics } from '@/lib/metrics'
 // GET /api/boards - List user's boards
 export const GET = withAuth(async (request: NextRequest) => {
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
 
   try {
     // Try to get from cache first
@@ -104,7 +105,7 @@ export const GET = withAuth(async (request: NextRequest) => {
 // POST /api/boards - Create new board
 export const POST = withAuth(async (request: NextRequest) => {
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
 
   try {
     const body = await request.json()

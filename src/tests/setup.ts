@@ -19,7 +19,7 @@ jest.mock('@/lib/cache/redis', () => ({
     set: jest.fn(),
     del: jest.fn(),
     expire: jest.fn(),
-    ping: jest.fn().mockResolvedValue('PONG' as unknown),
+    ping: jest.fn(),
     publish: jest.fn(),
     subscribe: jest.fn(),
     pSubscribe: jest.fn(),

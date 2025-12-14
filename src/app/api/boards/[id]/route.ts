@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
 import { redisClient, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
-import { updateBoardSchema } from '@/lib/validation/schemas'
+import { boardSchema, updateBoardSchema } from '@/lib/validation/schemas'
+import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
 
 // GET /api/boards/[id] - Get board details
-export const GET = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const GET = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const boardId = params.id
 
   try {
@@ -49,6 +51,12 @@ export const GET = withAuth(async (request: NextRequest, { params }: { params: {
       where: { id: boardId },
       include: {
         members: {
+          select: {
+            id: true,
+            boardId: true,
+            userId: true,
+            role: true,
+          },
           include: {
             user: {
               select: {
@@ -156,9 +164,10 @@ export const GET = withAuth(async (request: NextRequest, { params }: { params: {
 })
 
 // PUT /api/boards/[id] - Update board
-export const PUT = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const PUT = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const boardId = params.id
 
   try {
@@ -197,6 +206,12 @@ export const PUT = withAuth(async (request: NextRequest, { params }: { params: {
       data: updateData,
       include: {
         members: {
+          select: {
+            id: true,
+            boardId: true,
+            userId: true,
+            role: true,
+          },
           include: {
             user: {
               select: {
@@ -295,9 +310,10 @@ export const PUT = withAuth(async (request: NextRequest, { params }: { params: {
 })
 
 // DELETE /api/boards/[id] - Delete board
-export const DELETE = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const DELETE = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const boardId = params.id
 
   try {

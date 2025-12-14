@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
-import { redisClient, CACHE_KEYS } from '@/lib/cache/redis'
+import { redisClient, CACHE_KEYS, PUBSUB_CHANNELS } from '@/lib/cache/redis'
+import { addMemberSchema } from '@/lib/validation/schemas'
+import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
-import { z } from 'zod'
-
-// CUID validation
-const cuidSchema = z.string().regex(/^[a-z][a-z0-9]{24}$/i, 'Invalid user ID')
-
-const addMemberSchema = z.object({
-  userId: cuidSchema,
-  role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']).default('MEMBER'),
-})
 
 // POST /api/boards/[id]/members - Add board member
-export const POST = withAuth(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const POST = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const userId = request.user!.id
+  const { userId } = getUserFromRequest(request)
   const boardId = params.id
 
   try {

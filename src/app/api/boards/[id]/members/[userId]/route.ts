@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
 import { redisClient, CACHE_KEYS, PUBSUB_CHANNELS } from '@/lib/cache/redis'
+import { updateMemberSchema } from '@/lib/validation/schemas'
+import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
-import { z } from 'zod'
-
-// PUT request validation schema
-const updateMemberSchema = z.object({
-  role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER'], {
-    errorMap: () => ({ message: 'Role must be one of: OWNER, ADMIN, MEMBER, VIEWER' })
-  }),
-})
 
 // PUT /api/boards/[id]/members/[userId] - Update member role
-export const PUT = withAuth(async (request: NextRequest, { params }: { params: { id: string; userId: string } }) => {
+export const PUT = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string; userId: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const currentUserId = request.user!.id
+  const { userId: requestingUserId } = getUserFromRequest(request)
   const boardId = params.id
   const memberToUpdateId = params.userId
 
@@ -41,7 +36,7 @@ export const PUT = withAuth(async (request: NextRequest, { params }: { params: {
     }
 
     // Only OWNER can change roles
-    const hasPermission = await checkPermission(currentUserId, 'board', boardId, 'OWNER')
+    const hasPermission = await checkPermission(requestingUserId, 'board', boardId, 'OWNER')
     if (!hasPermission) {
       metrics.httpRequestsTotal.inc({ method: 'PUT', route: '/api/boards/[id]/members/[userId]', status_code: '403' })
 
@@ -89,7 +84,7 @@ export const PUT = withAuth(async (request: NextRequest, { params }: { params: {
     }
 
     // Prevent users from changing their own role to something lower than OWNER
-    if (currentUserId === memberToUpdateId && newRole !== 'OWNER') {
+    if (requestingUserId === memberToUpdateId && newRole !== 'OWNER') {
       metrics.httpRequestsTotal.inc({ method: 'PUT', route: '/api/boards/[id]/members/[userId]', status_code: '400' })
 
       return NextResponse.json(
@@ -142,7 +137,7 @@ export const PUT = withAuth(async (request: NextRequest, { params }: { params: {
     metrics.httpRequestDuration.observe({ method: 'PUT', route: '/api/boards/[id]/members/[userId]' }, responseTime / 1000)
 
     logger.info({
-      currentUserId,
+      requestingUserId,
       boardId,
       memberToUpdateId,
       oldRole: membership.role,
@@ -162,7 +157,7 @@ export const PUT = withAuth(async (request: NextRequest, { params }: { params: {
 
     logger.error({
       error: errorMessage,
-      currentUserId,
+      requestingUserId,
       boardId,
       memberToUpdateId,
       responseTime
@@ -181,9 +176,10 @@ export const PUT = withAuth(async (request: NextRequest, { params }: { params: {
 })
 
 // DELETE /api/boards/[id]/members/[userId] - Remove board member
-export const DELETE = withAuth(async (request: NextRequest, { params }: { params: { id: string; userId: string } }) => {
+export const DELETE = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string; userId: string }> }) => {
+  const params = await context.params;
   const startTime = Date.now()
-  const currentUserId = request.user!.id
+  const { userId: requestingUserId } = getUserFromRequest(request)
   const boardId = params.id
   const memberToRemoveId = params.userId
 
@@ -210,12 +206,12 @@ export const DELETE = withAuth(async (request: NextRequest, { params }: { params
     // Users can remove themselves, or admins/owners can remove others
     let hasPermission = false
 
-    if (currentUserId === memberToRemoveId) {
+    if (requestingUserId === memberToRemoveId) {
       // Users can always remove themselves
       hasPermission = true
     } else {
       // Check if current user has admin/owner permissions
-      hasPermission = await checkPermission(currentUserId, 'board', boardId, 'ADMIN')
+      hasPermission = await checkPermission(requestingUserId, 'board', boardId, 'ADMIN')
     }
 
     if (!hasPermission) {
@@ -257,7 +253,7 @@ export const DELETE = withAuth(async (request: NextRequest, { params }: { params
     })
 
     // If user removed themselves, also remove their assignments from tasks
-    if (currentUserId === memberToRemoveId) {
+    if (requestingUserId === memberToRemoveId) {
       await prisma.task.updateMany({
         where: {
           column: {
@@ -291,7 +287,7 @@ export const DELETE = withAuth(async (request: NextRequest, { params }: { params
     metrics.httpRequestsTotal.inc({ method: 'DELETE', route: '/api/boards/[id]/members/[userId]', status_code: '200' })
     metrics.httpRequestDuration.observe({ method: 'DELETE', route: '/api/boards/[id]/members/[userId]' }, responseTime / 1000)
 
-    logger.info({ currentUserId, boardId, memberToRemoveId, responseTime }, 'Board member removed successfully')
+    logger.info({ requestingUserId, boardId, memberToRemoveId, responseTime }, 'Board member removed successfully')
 
     return NextResponse.json({
       success: true,
@@ -302,7 +298,7 @@ export const DELETE = withAuth(async (request: NextRequest, { params }: { params
     const responseTime = Date.now() - startTime
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
-    logger.error({ error: errorMessage, currentUserId, boardId, memberToRemoveId, responseTime }, 'Failed to remove board member')
+    logger.error({ error: errorMessage, requestingUserId, boardId, memberToRemoveId, responseTime }, 'Failed to remove board member')
 
     metrics.httpRequestsTotal.inc({ method: 'DELETE', route: '/api/boards/[id]/members/[userId]', status_code: '500' })
 

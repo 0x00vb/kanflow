@@ -51,12 +51,6 @@ export const GET = withAuth(async (request: NextRequest, context: { params: Prom
       where: { id: boardId },
       include: {
         members: {
-          select: {
-            id: true,
-            boardId: true,
-            userId: true,
-            role: true,
-          },
           include: {
             user: {
               select: {
@@ -206,12 +200,6 @@ export const PUT = withAuth(async (request: NextRequest, context: { params: Prom
       data: updateData,
       include: {
         members: {
-          select: {
-            id: true,
-            boardId: true,
-            userId: true,
-            role: true,
-          },
           include: {
             user: {
               select: {

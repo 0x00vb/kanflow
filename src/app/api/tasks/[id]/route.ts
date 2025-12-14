@@ -248,13 +248,24 @@ export const PUT = withAuth(async (request: NextRequest, context: { params: Prom
     await redisClient.del(CACHE_KEYS.USER_BOARDS(userId))
 
     // Publish WebSocket event for real-time updates
+    // Determine if this is a task move (column change) or regular update
+    const isTaskMove = updateData.columnId && updateData.columnId !== currentTask.columnId
+    console.log('📡 Publishing WebSocket event:', { isTaskMove, updateData, currentColumnId: currentTask.columnId, newColumnId: updateData.columnId })
+
     const taskEvent = {
-      type: 'task:updated',
-      data: task,
+      type: isTaskMove ? 'task:moved' : 'task:updated',
+      data: isTaskMove
+        ? {
+            id: task.id,
+            columnId: task.columnId,
+            position: 0, // TODO: Add position calculation if needed
+          }
+        : task,
       timestamp: Date.now(),
       boardId: currentTask.column.boardId,
     }
 
+    console.log('📡 Publishing event:', taskEvent)
     await redisClient.publish(PUBSUB_CHANNELS.BOARD_UPDATES(currentTask.column.boardId), JSON.stringify(taskEvent))
 
     const responseTime = Date.now() - startTime

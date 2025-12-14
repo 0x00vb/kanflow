@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { v4 as uuidv4 } from 'uuid'
 
-const JWT_SECRET: jwt.Secret = process.env.JWT_SECRET || 'fallback-secret-key'
+const JWT_SECRET: jwt.Secret = process.env.JWT_SECRET || 'your-secure-random-secret-key-here'
 const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d'
 
 export interface JWTPayload {

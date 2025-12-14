@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/lib/auth/context'
 import { useApi, securityUtils } from '@/lib/api/client'
+import { useRealtimeBoard } from '@/hooks/useRealtimeBoard'
+import { useWebSocket } from '@/hooks/useWebSocket'
 import {
   DndContext,
   DragEndEvent,
@@ -23,6 +25,8 @@ import { TaskDetailModal } from './modals/TaskDetailModal'
 import { CreateColumnModal } from './modals/CreateColumnModal'
 import { EditColumnModal } from './modals/EditColumnModal'
 import { MemberManagementModal } from './modals/MemberManagementModal'
+import { PresenceIndicators } from './PresenceIndicators'
+import { ActivityFeed } from './ActivityFeed'
 
 
 
@@ -52,6 +56,13 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Real-time features
+  const { optimisticManager } = useWebSocket(boardId)
+  const realtimeBoard = useRealtimeBoard(boardId)
+  const unsubscribeTaskEvents = useRef<(() => void) | null>(null)
+  const unsubscribeColumnEvents = useRef<(() => void) | null>(null)
+  const unsubscribeBoardEvents = useRef<(() => void) | null>(null)
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -63,6 +74,21 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
   useEffect(() => {
     fetchBoardData()
   }, [boardId])
+
+  // Cleanup real-time subscriptions on unmount
+  useEffect(() => {
+    return () => {
+      if (unsubscribeTaskEvents.current) {
+        unsubscribeTaskEvents.current()
+      }
+      if (unsubscribeColumnEvents.current) {
+        unsubscribeColumnEvents.current()
+      }
+      if (unsubscribeBoardEvents.current) {
+        unsubscribeBoardEvents.current()
+      }
+    }
+  }, [])
 
   const fetchBoardData = async () => {
     try {
@@ -97,6 +123,21 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
           }
         })
         setTasks(allTasks)
+
+        // Set up real-time event subscriptions
+        if (unsubscribeTaskEvents.current) {
+          unsubscribeTaskEvents.current()
+        }
+        if (unsubscribeColumnEvents.current) {
+          unsubscribeColumnEvents.current()
+        }
+        if (unsubscribeBoardEvents.current) {
+          unsubscribeBoardEvents.current()
+        }
+
+        unsubscribeTaskEvents.current = realtimeBoard.subscribeToTaskEvents(setTasks, setColumns)
+        unsubscribeColumnEvents.current = realtimeBoard.subscribeToColumnEvents(setColumns)
+        unsubscribeBoardEvents.current = realtimeBoard.subscribeToBoardEvents(setBoard)
       } else {
         setError(boardResult.error || 'Failed to fetch board')
       }
@@ -141,13 +182,38 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
         sanitizedData.dueDate = new Date(taskData.dueDate).toISOString()
       }
 
-      const result = await api.post(`/api/columns/${selectedColumnId}/tasks`, sanitizedData)
+      // Generate optimistic task ID
+      const optimisticTaskId = `temp-task-${Date.now()}-${Math.random()}`
 
-      if (result.success) {
-        await fetchBoardData() // Refresh board data
-      } else {
-        setError(result.error || 'Failed to create task')
+      // Create optimistic task for immediate UI update
+      const optimisticTask: Task = {
+        id: optimisticTaskId,
+        title: sanitizedData.title,
+        description: sanitizedData.description,
+        assigneeId: sanitizedData.assigneeId,
+        dueDate: sanitizedData.dueDate,
+        priority: sanitizedData.priority,
+        labels: sanitizedData.labels,
+        columnId: selectedColumnId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       }
+
+      // Apply optimistic update with conflict resolution
+      await optimisticManager.applyOptimisticUpdate(
+        `task-create-${optimisticTaskId}`,
+        optimisticTask,
+        () => api.post(`/api/columns/${selectedColumnId}/tasks`, sanitizedData),
+        () => {
+          // Rollback: Remove the optimistic task from UI
+          setTasks(prevTasks => prevTasks.filter(task => task.id !== optimisticTaskId))
+        },
+        optimisticTaskId,
+        'create'
+      )
+
+      // On success, the real-time events will update the UI with the actual task data
+
     } catch (error) {
       console.error('Error creating task:', error)
       setError(error instanceof Error ? error.message : 'Failed to create task')
@@ -174,6 +240,12 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
     try {
       setError(null)
 
+      // Get current task for rollback
+      const currentTask = tasks.find(t => t.id === taskId)
+      if (!currentTask) {
+        throw new Error('Task not found')
+      }
+
       // Sanitize input for security and handle empty values
       // Note: API expects string format for dueDate, not Date object
       const sanitizedUpdates: any = {}
@@ -187,19 +259,19 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
       if (updates.labels) {
         sanitizedUpdates.labels = updates.labels.map(label => securityUtils.sanitizeInput(label.trim())).filter(label => label)
       }
-      
+
       // Handle assigneeId - convert empty string to undefined
       if (updates.assigneeId !== undefined) {
         sanitizedUpdates.assigneeId = updates.assigneeId && updates.assigneeId.trim() ? updates.assigneeId.trim() : undefined
       }
-      
+
       if (updates.priority !== undefined) {
         sanitizedUpdates.priority = updates.priority
       }
       if (updates.columnId !== undefined) {
         sanitizedUpdates.columnId = updates.columnId
       }
-      
+
       // Handle dueDate - convert to ISO string or undefined
       if (updates.dueDate !== undefined) {
         if (updates.dueDate === null) {
@@ -213,13 +285,23 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
         }
       }
 
-      const result = await api.put(`/api/tasks/${taskId}`, sanitizedUpdates)
+      // Apply optimistic update with conflict resolution
+      await optimisticManager.applyOptimisticUpdate(
+        `task-update-${taskId}-${Date.now()}`,
+        { ...currentTask, ...sanitizedUpdates },
+        () => api.put(`/api/tasks/${taskId}`, sanitizedUpdates),
+        () => {
+          // Rollback: Restore original task state
+          setTasks(prevTasks => prevTasks.map(task =>
+            task.id === taskId ? currentTask : task
+          ))
+        },
+        taskId,
+        'update'
+      )
 
-      if (result.success) {
-        await fetchBoardData() // Refresh board data
-      } else {
-        setError(result.error || 'Failed to update task')
-      }
+      // On success, the real-time events will update the UI with the actual task data
+
     } catch (error) {
       console.error('Error updating task:', error)
       setError(error instanceof Error ? error.message : 'Failed to update task')
@@ -355,29 +437,40 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
     if (task.columnId === targetColumn.id) return
 
     try {
-      // Optimistically update the UI
-      setTasks(prevTasks =>
-        prevTasks.map(t =>
-          t.id === taskId ? { ...t, columnId: targetColumn.id } : t
-        )
+      // Store original column for rollback
+      const originalColumnId = task.columnId
+      console.log('🚀 Starting task move:', { taskId, fromColumn: originalColumnId, toColumn: targetColumn.id })
+
+      // Apply optimistic update with conflict resolution
+      await optimisticManager.applyOptimisticUpdate(
+        `task-move-${taskId}-${Date.now()}`,
+        { ...task, columnId: targetColumn.id },
+        () => api.put(`/api/tasks/${taskId}`, {
+          columnId: targetColumn.id,
+        }),
+        () => {
+          // Rollback: Move task back to original column
+          console.log('🔄 Rolling back task move due to error')
+          setTasks(prevTasks => prevTasks.map(t =>
+            t.id === taskId ? { ...t, columnId: originalColumnId } : t
+          ))
+        },
+        taskId,
+        'move',
+        () => {
+          // Optimistic state update: Move task to new column
+          console.log('⚡ Applying optimistic task move update')
+          setTasks(prevTasks => prevTasks.map(t =>
+            t.id === taskId ? { ...t, columnId: targetColumn.id } : t
+          ))
+        }
       )
 
-      const result = await api.put(`/api/tasks/${taskId}`, {
-        columnId: targetColumn.id,
-      })
-
-      if (!result.success) {
-        // Revert on failure
-        await fetchBoardData()
-        console.error('Failed to move task:', result.error)
-      } else {
-        // Refresh to get updated data
-        await fetchBoardData()
-      }
+      console.log('✅ Task move completed successfully')
+      // Real-time events will handle final UI synchronization if needed
     } catch (error) {
-      // Revert on error
-      await fetchBoardData()
-      console.error('Error moving task:', error)
+      console.error('❌ Error moving task:', error)
+      setError(error instanceof Error ? error.message : 'Failed to move task')
     }
   }
 
@@ -465,6 +558,9 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
           </div>
         </div>
 
+        {/* Presence Indicators */}
+        <PresenceIndicators boardId={boardId} className="mb-4" />
+
         {/* Columns */}
         <div className="flex flex-col md:flex-row md:space-x-6 md:overflow-x-auto pb-6 space-y-4 md:space-y-0">
           {columnsWithTasks.map((column) => (
@@ -491,6 +587,11 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
               Add Column
             </Button>
           </div>
+        </div>
+
+        {/* Activity Feed */}
+        <div className="mt-8">
+          <ActivityFeed boardId={boardId} maxHeight={300} />
         </div>
 
         <CreateTaskModal

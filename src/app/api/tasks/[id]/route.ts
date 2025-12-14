@@ -360,21 +360,21 @@ export const DELETE = withAuth(async (request: NextRequest, context: { params: P
       columnId: currentTask.columnId,
     }
 
-    // Delete task
-    await prisma.task.delete({
-      where: { id: taskId },
-    })
-
-    // Create activity record (must be after deletion to avoid foreign key issues)
+    // Create activity record BEFORE deletion to maintain data traceability and avoid foreign key issues
     await createActivity({
       boardId: currentTask.column.boardId,
       userId,
-      taskId: taskId, // Keep taskId even though task is deleted
+      taskId: taskId,
       type: 'TASK_DELETED',
       data: {
         taskTitle: taskInfo.title,
         columnId: taskInfo.columnId,
       },
+    })
+
+    // Delete task (activities will have taskId set to NULL due to cascade rule)
+    await prisma.task.delete({
+      where: { id: taskId },
     })
 
     // Invalidate board cache

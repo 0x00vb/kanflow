@@ -137,7 +137,10 @@ const ActivityItem: React.FC<ActivityItemProps> = ({ activity, columns, isNew = 
 
   const getActivityDescription = (activity: ActivityWithRelations, columns: Array<{ id: string; title: string }>): string => {
     const userName = activity.user.name
-    const taskTitle = activity.task?.title || 'Unknown task'
+    const activityData = activity.data as any
+
+    // For deleted tasks, get title from activity data since task relation is null
+    const taskTitle = activity.task?.title || activityData?.taskTitle || 'Unknown task'
 
     switch (activity.type) {
       case 'TASK_CREATED':

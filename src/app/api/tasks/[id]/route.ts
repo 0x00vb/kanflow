@@ -6,6 +6,7 @@ import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
+import { createActivity } from '@/lib/activities'
 
 // GET /api/tasks/[id] - Get task details
 export const GET = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -243,13 +244,27 @@ export const PUT = withAuth(async (request: NextRequest, context: { params: Prom
       },
     })
 
+    // Determine if this is a task move (column change) or regular update
+    const isTaskMove = updateData.columnId && updateData.columnId !== currentTask.columnId
+
+    // Create activity record
+    await createActivity({
+      boardId: currentTask.column.boardId,
+      userId,
+      taskId: task.id,
+      type: isTaskMove ? 'TASK_MOVED' : 'TASK_UPDATED',
+      data: {
+        taskTitle: task.title,
+        oldColumnId: isTaskMove ? currentTask.columnId : undefined,
+        newColumnId: isTaskMove ? task.columnId : undefined,
+      },
+    })
+
     // Invalidate board cache
     await redisClient.del(CACHE_KEYS.BOARD(currentTask.column.boardId))
     await redisClient.del(CACHE_KEYS.USER_BOARDS(userId))
 
     // Publish WebSocket event for real-time updates
-    // Determine if this is a task move (column change) or regular update
-    const isTaskMove = updateData.columnId && updateData.columnId !== currentTask.columnId
     console.log('📡 Publishing WebSocket event:', { isTaskMove, updateData, currentColumnId: currentTask.columnId, newColumnId: updateData.columnId })
 
     const taskEvent = {
@@ -339,9 +354,27 @@ export const DELETE = withAuth(async (request: NextRequest, context: { params: P
       )
     }
 
+    // Store task info before deletion for activity
+    const taskInfo = {
+      title: currentTask.title,
+      columnId: currentTask.columnId,
+    }
+
     // Delete task
     await prisma.task.delete({
       where: { id: taskId },
+    })
+
+    // Create activity record (must be after deletion to avoid foreign key issues)
+    await createActivity({
+      boardId: currentTask.column.boardId,
+      userId,
+      taskId: taskId, // Keep taskId even though task is deleted
+      type: 'TASK_DELETED',
+      data: {
+        taskTitle: taskInfo.title,
+        columnId: taskInfo.columnId,
+      },
     })
 
     // Invalidate board cache

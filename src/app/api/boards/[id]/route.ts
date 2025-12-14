@@ -6,6 +6,7 @@ import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
+import { createActivity } from '@/lib/activities'
 
 // GET /api/boards/[id] - Get board details
 export const GET = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -260,6 +261,14 @@ export const PUT = withAuth(async (request: NextRequest, context: { params: Prom
           },
         },
       },
+    })
+
+    // Create activity record
+    await createActivity({
+      boardId,
+      userId,
+      type: 'BOARD_UPDATED',
+      data: updateData,
     })
 
     // Invalidate caches

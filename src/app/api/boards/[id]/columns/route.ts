@@ -6,6 +6,7 @@ import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
+import { createActivity } from '@/lib/activities'
 
 // GET /api/boards/[id]/columns - List board columns
 export const GET = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -146,6 +147,17 @@ export const POST = withAuth(async (request: NextRequest, context: { params: Pro
             tasks: true,
           },
         },
+      },
+    })
+
+    // Create activity record
+    await createActivity({
+      boardId,
+      userId,
+      type: 'COLUMN_CREATED',
+      data: {
+        columnTitle: column.title,
+        position: column.position,
       },
     })
 

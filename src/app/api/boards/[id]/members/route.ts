@@ -6,6 +6,7 @@ import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
+import { createActivity } from '@/lib/activities'
 
 // POST /api/boards/[id]/members - Add board member
 export const POST = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -91,6 +92,18 @@ export const POST = withAuth(async (request: NextRequest, context: { params: Pro
     }, {
       maxWait: 5000, // 5 second timeout
       timeout: 10000, // 10 second transaction timeout
+    })
+
+    // Create activity record
+    await createActivity({
+      boardId,
+      userId,
+      type: 'MEMBER_ADDED',
+      data: {
+        addedUserId: newMemberId,
+        addedUserName: boardMember.user.name,
+        role: boardMember.role,
+      },
     })
 
     // Invalidate caches

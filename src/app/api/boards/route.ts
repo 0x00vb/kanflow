@@ -6,6 +6,7 @@ import { getUserFromRequest } from '@/lib/auth'
 import { withAuth } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
+import { createActivity } from '@/lib/activities'
 
 // GET /api/boards - List user's boards
 export const GET = withAuth(async (request: NextRequest) => {
@@ -167,6 +168,17 @@ export const POST = withAuth(async (request: NextRequest) => {
             members: true,
           },
         },
+      },
+    })
+
+    // Create activity record for board creation
+    await createActivity({
+      boardId: board.id,
+      userId,
+      type: 'BOARD_CREATED',
+      data: {
+        boardTitle: board.title,
+        isPublic: board.isPublic,
       },
     })
 

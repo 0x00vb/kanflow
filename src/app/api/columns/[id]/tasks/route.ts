@@ -6,6 +6,7 @@ import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
+import { createActivity } from '@/lib/activities'
 
 // GET /api/columns/[id]/tasks - List column tasks
 export const GET = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -242,6 +243,18 @@ export const POST = withAuth(async (request: NextRequest, context: { params: Pro
     // Invalidate board cache
     await redisClient.del(CACHE_KEYS.BOARD(column.boardId))
     await redisClient.del(CACHE_KEYS.USER_BOARDS(userId))
+
+    // Create activity record
+    await createActivity({
+      boardId: column.boardId,
+      userId,
+      taskId: task.id,
+      type: 'TASK_CREATED',
+      data: {
+        taskTitle: task.title,
+        columnTitle: column.board.title,
+      },
+    })
 
     // Publish WebSocket event for real-time updates
     const taskEvent = {

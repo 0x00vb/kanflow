@@ -44,6 +44,7 @@ export { redisClient }
 export const CACHE_KEYS = {
   BOARD: (id: string) => `board:${id}`,
   BOARD_ACTIVITY: (id: string) => `board:${id}:activity`,
+  BOARD_ACTIVITIES: (id: string) => `board:${id}:activities`,
   USER: (id: string) => `user:${id}`,
   USER_BOARDS: (id: string) => `user:${id}:boards`,
   BOARD_MEMBERS: (id: string) => `board:${id}:members`,
@@ -55,6 +56,7 @@ export const CACHE_KEYS = {
 export const CACHE_TTL = {
   BOARD: 300, // 5 minutes
   BOARD_ACTIVITY: 60, // 1 minute
+  BOARD_ACTIVITIES: 120, // 2 minutes (activities change more frequently)
   USER: 1800, // 30 minutes (user data changes less frequently)
   USER_BOARDS: 600, // 10 minutes
   BOARD_MEMBERS: 900, // 15 minutes

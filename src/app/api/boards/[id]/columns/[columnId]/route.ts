@@ -6,6 +6,7 @@ import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
+import { createActivity } from '@/lib/activities'
 
 // PUT /api/boards/[id]/columns/[columnId] - Update column
 export const PUT = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string; columnId: string }> }) => {
@@ -116,6 +117,18 @@ export const PUT = withAuth(async (request: NextRequest, context: { params: Prom
       },
     })
 
+    // Create activity record
+    await createActivity({
+      boardId,
+      userId,
+      type: 'COLUMN_UPDATED',
+      data: {
+        columnTitle: updatedColumn.title,
+        oldPosition: column.position,
+        newPosition: updatedColumn.position,
+      },
+    })
+
     // Invalidate board cache
     await redisClient.del(CACHE_KEYS.BOARD(boardId))
     await redisClient.del(CACHE_KEYS.USER_BOARDS(userId))
@@ -198,9 +211,26 @@ export const DELETE = withAuth(async (request: NextRequest, context: { params: P
       )
     }
 
+    // Store column info before deletion for activity
+    const columnInfo = {
+      title: column.title,
+      position: column.position,
+    }
+
     // Delete column (cascade will handle tasks)
     await prisma.column.delete({
       where: { id: columnId },
+    })
+
+    // Create activity record (must be after deletion)
+    await createActivity({
+      boardId,
+      userId,
+      type: 'COLUMN_DELETED',
+      data: {
+        columnTitle: columnInfo.title,
+        position: columnInfo.position,
+      },
     })
 
     // Reorder remaining columns

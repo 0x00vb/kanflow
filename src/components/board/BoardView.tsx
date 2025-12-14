@@ -591,7 +591,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
 
         {/* Activity Feed */}
         <div className="mt-8">
-          <ActivityFeed boardId={boardId} maxHeight={300} />
+          <ActivityFeed boardId={boardId} columns={columns} maxHeight={300} />
         </div>
 
         <CreateTaskModal

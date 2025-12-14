@@ -115,6 +115,12 @@ model Activity {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   task      Task?     @relation(fields: [taskId], references: [id])
 
+  // Indexes for performance
+  @@index([boardId, createdAt])
+  @@index([boardId, type, createdAt])
+  @@index([userId, createdAt])
+  @@index([taskId])
+
   @@map("activities")
 }
 

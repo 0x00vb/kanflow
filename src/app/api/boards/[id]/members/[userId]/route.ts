@@ -6,6 +6,7 @@ import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
+import { createActivity } from '@/lib/activities'
 
 // PUT /api/boards/[id]/members/[userId] - Update member role
 export const PUT = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string; userId: string }> }) => {
@@ -242,6 +243,12 @@ export const DELETE = withAuth(async (request: NextRequest, context: { params: P
       }
     }
 
+    // Get user info for activity record before deletion
+    const userInfo = await prisma.user.findUnique({
+      where: { id: memberToRemoveId },
+      select: { name: true },
+    })
+
     // Remove member from board
     await prisma.boardMember.delete({
       where: {
@@ -249,6 +256,18 @@ export const DELETE = withAuth(async (request: NextRequest, context: { params: P
           boardId,
           userId: memberToRemoveId,
         },
+      },
+    })
+
+    // Create activity record
+    await createActivity({
+      boardId,
+      userId: requestingUserId,
+      type: 'MEMBER_REMOVED',
+      data: {
+        removedUserId: memberToRemoveId,
+        removedUserName: userInfo?.name || 'Unknown User',
+        removedBySelf: requestingUserId === memberToRemoveId,
       },
     })
 

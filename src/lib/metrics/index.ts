@@ -155,6 +155,19 @@ export const metrics = {
     labelNames: ['cache_type'],
   }),
 
+  // Activity metrics
+  activityEvents: new Counter({
+    name: 'kanflow_activity_events_total',
+    help: 'Total number of activity events created',
+    labelNames: ['activity_type'],
+  }),
+
+  activityErrors: new Counter({
+    name: 'kanflow_activity_errors_total',
+    help: 'Total number of activity creation errors',
+    labelNames: ['activity_type'],
+  }),
+
   // Business metrics
   activeBoards: new Gauge({
     name: 'kanflow_active_boards',

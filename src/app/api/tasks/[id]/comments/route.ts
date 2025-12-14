@@ -6,6 +6,7 @@ import { getUserFromRequest } from '@/lib/auth'
 import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
+import { createActivity } from '@/lib/activities'
 
 // POST /api/tasks/[id]/comments - Add comment
 export const POST = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -81,6 +82,17 @@ export const POST = withAuth(async (request: NextRequest, context: { params: Pro
             avatar: true,
           },
         },
+      },
+    })
+
+    // Create activity record
+    await createActivity({
+      boardId: task.column.boardId,
+      userId,
+      taskId,
+      type: 'COMMENT_ADDED',
+      data: {
+        commentPreview: content.length > 50 ? content.substring(0, 50) + '...' : content,
       },
     })
 

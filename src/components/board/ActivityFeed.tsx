@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger'
 
 interface ActivityFeedProps {
   boardId: string
+  columns?: Array<{ id: string; title: string }>
   className?: string
   maxHeight?: number
   showHeader?: boolean
@@ -16,6 +17,7 @@ interface ActivityFeedProps {
 
 interface ActivityItemProps {
   activity: ActivityWithRelations
+  columns: Array<{ id: string; title: string }>
   isNew?: boolean
 }
 
@@ -69,7 +71,7 @@ const VirtualizedList: React.FC<{
   )
 }
 
-const ActivityItem: React.FC<ActivityItemProps> = ({ activity, isNew = false }) => {
+const ActivityItem: React.FC<ActivityItemProps> = ({ activity, columns, isNew = false }) => {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'TASK_CREATED':
@@ -133,7 +135,7 @@ const ActivityItem: React.FC<ActivityItemProps> = ({ activity, isNew = false }) 
     }
   }
 
-  const getActivityDescription = (activity: ActivityWithRelations): string => {
+  const getActivityDescription = (activity: ActivityWithRelations, columns: Array<{ id: string; title: string }>): string => {
     const userName = activity.user.name
     const taskTitle = activity.task?.title || 'Unknown task'
 
@@ -145,7 +147,19 @@ const ActivityItem: React.FC<ActivityItemProps> = ({ activity, isNew = false }) 
       case 'TASK_DELETED':
         return `${userName} deleted "${taskTitle}"`
       case 'TASK_MOVED':
-        return `${userName} moved "${taskTitle}"`
+        // Get column information from activity data
+        const activityData = activity.data as any
+        const oldColumnId = activityData?.oldColumnId
+        const newColumnId = activityData?.newColumnId
+
+        // Find column names
+        const oldColumn = columns.find(col => col.id === oldColumnId)
+        const newColumn = columns.find(col => col.id === newColumnId)
+
+        const oldColumnName = oldColumn?.title || 'Unknown column'
+        const newColumnName = newColumn?.title || 'Unknown column'
+
+        return `${userName} moved "${taskTitle}" from "${oldColumnName}" to "${newColumnName}"`
       case 'COMMENT_ADDED':
         return `${userName} commented on "${taskTitle}"`
       case 'COLUMN_CREATED':
@@ -181,7 +195,7 @@ const ActivityItem: React.FC<ActivityItemProps> = ({ activity, isNew = false }) 
       {getActivityIcon(activity.type)}
       <div className="flex-1 min-w-0">
         <p className="text-sm text-gray-900">
-          {getActivityDescription(activity)}
+          {getActivityDescription(activity, columns)}
         </p>
         <p className="text-xs text-gray-500 mt-1">
           {formatTimeAgo(activity.createdAt)}
@@ -196,6 +210,7 @@ const ActivityItem: React.FC<ActivityItemProps> = ({ activity, isNew = false }) 
 
 export const ActivityFeed: React.FC<ActivityFeedProps> = ({
   boardId,
+  columns = [],
   className,
   maxHeight = 400,
   showHeader = true
@@ -204,7 +219,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const api = useApi()
-  const { isConnected } = useWebSocket(boardId)
+  const { isConnected, subscribe } = useWebSocket(boardId)
 
   // Track new activities for highlighting
   const [newActivityIds, setNewActivityIds] = useState<Set<string>>(new Set())
@@ -214,68 +229,127 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
     const fetchActivities = async () => {
       try {
         setError(null)
-        // TODO: Implement activity API endpoint
-        // For now, we'll start with empty activities and rely on real-time updates
-        setActivities([])
+        setIsLoading(true)
+
+        const response = await api.get(`/api/boards/${boardId}/activity?limit=50`)
+
+        if (response.success && response.data) {
+          console.log('📡 ActivityFeed initial fetch response:', {
+            success: response.success,
+            activitiesCount: response.data.activities?.length || 0,
+            cached: response.data.cached,
+            pagination: response.data.pagination
+          })
+
+          // Convert date strings to Date objects
+          const activitiesWithDates = (response.data.activities || []).map((activity: any) => ({
+            ...activity,
+            createdAt: new Date(activity.createdAt),
+            user: {
+              ...activity.user,
+              createdAt: new Date(activity.user.createdAt),
+              updatedAt: new Date(activity.user.updatedAt),
+            },
+            task: activity.task ? {
+              ...activity.task,
+              createdAt: new Date(activity.task.createdAt),
+              updatedAt: new Date(activity.task.updatedAt),
+            } : undefined,
+            board: {
+              ...activity.board,
+              createdAt: new Date(activity.board.createdAt),
+              updatedAt: new Date(activity.board.updatedAt),
+            },
+          }))
+
+          console.log('📝 ActivityFeed loaded activities:', activitiesWithDates.map((a: ActivityWithRelations) => ({
+            id: a.id,
+            type: a.type,
+            createdAt: a.createdAt,
+            userName: a.user.name
+          })))
+
+          setActivities(activitiesWithDates)
+        } else {
+          setActivities([])
+        }
       } catch (error) {
         logger.error({ error: error instanceof Error ? error.message : 'Unknown error' }, 'Failed to fetch activities')
         setError('Failed to load activities')
+        setActivities([])
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchActivities()
-  }, [boardId])
+  }, [boardId, api])
 
   // Real-time activity updates
   useEffect(() => {
+    console.log('🔌 ActivityFeed WebSocket connection status:', isConnected)
+
     if (!isConnected) return
 
-    // Subscribe to activity events (when implemented)
-    // For now, we'll simulate activity creation from task events
+    console.log('📡 Setting up activity event subscription')
 
-    const handleTaskEvent = (eventType: string, taskData: any) => {
-      const activityType = eventType.toUpperCase().replace(':', '_')
+    // Subscribe to activity events
+    const handleActivityEvent = (activityData: any) => {
+      console.log('🎯 ActivityFeed received activity event:', activityData)
+
       const activity: ActivityWithRelations = {
-        id: `activity-${Date.now()}-${Math.random()}`,
-        boardId,
-        userId: 'current-user', // TODO: Get from auth context
-        taskId: taskData.id,
-        type: activityType as any,
-        data: null,
-        createdAt: new Date(),
+        ...activityData,
+        createdAt: new Date(activityData.createdAt),
         user: {
-          id: 'current-user',
-          name: 'Current User',
-          email: 'user@example.com',
-          password: 'placeholder', // Not used in display
-          avatar: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          ...activityData.user,
+          createdAt: new Date(activityData.user.createdAt),
+          updatedAt: new Date(activityData.user.updatedAt),
         },
-        task: taskData,
+        task: activityData.task ? {
+          ...activityData.task,
+          createdAt: new Date(activityData.task.createdAt),
+          updatedAt: new Date(activityData.task.updatedAt),
+        } : undefined,
         board: {
-          id: boardId,
-          title: 'Board',
-          description: '',
-          isPublic: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          ...activityData.board,
+          createdAt: new Date(activityData.board.createdAt),
+          updatedAt: new Date(activityData.board.updatedAt),
         },
       }
 
-      setActivities(prev => [activity, ...prev.slice(0, 99)]) // Keep last 100 activities
+      console.log('✅ Processed activity for display:', {
+        id: activity.id,
+        type: activity.type,
+        createdAt: activity.createdAt,
+        userName: activity.user.name
+      })
+
+      setActivities(prev => {
+        // Check if activity already exists (avoid duplicates)
+        const existingIndex = prev.findIndex(a => a.id === activity.id)
+        if (existingIndex >= 0) {
+          console.log('⚠️ Activity already exists, skipping duplicate')
+          return prev
+        }
+
+        // Add new activity at the top
+        const newActivities = [activity, ...prev.slice(0, 99)]
+        console.log('📝 Updated activities list, new count:', newActivities.length)
+        return newActivities
+      })
+
       setNewActivityIds(prev => new Set([activity.id, ...Array.from(prev).slice(0, 9)])) // Highlight for 10 seconds
     }
 
-    // TODO: Subscribe to actual activity events when API is implemented
-    // For now, this is a placeholder
+    // Subscribe to activity events
+    const unsubscribeActivity = subscribe('activity:created', handleActivityEvent)
+    console.log('✅ ActivityFeed subscribed to activity:created events')
 
     return () => {
-      // Cleanup subscriptions
+      console.log('🔌 ActivityFeed unsubscribing from activity events')
+      unsubscribeActivity()
     }
-  }, [isConnected, boardId])
+  }, [isConnected, boardId, subscribe])
 
   // Clear new activity highlights after 10 seconds
   useEffect(() => {
@@ -340,6 +414,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
               <ActivityItem
                 key={activity.id}
                 activity={activity}
+                columns={columns}
                 isNew={newActivityIds.has(activity.id)}
               />
             )}

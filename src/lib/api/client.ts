@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useAuth } from '@/lib/auth/context'
 
 export interface ApiResponse<T = any> {
@@ -157,7 +158,8 @@ export class ApiClient {
 
 // Hook personalizado para usar en componentes
 export const useApi = (): ApiClient => {
-  return new ApiClient()
+  const [apiClient] = useState(() => new ApiClient())
+  return apiClient
 }
 
 // Función utilitaria para uso en server components o utilidades

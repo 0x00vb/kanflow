@@ -17,6 +17,7 @@ jest.mock('@/lib/cache/redis', () => ({
   redisClient: {
     get: jest.fn(),
     set: jest.fn(),
+    setEx: jest.fn(),
     del: jest.fn(),
     expire: jest.fn(),
     ping: jest.fn(),
@@ -24,10 +25,12 @@ jest.mock('@/lib/cache/redis', () => ({
     subscribe: jest.fn(),
     pSubscribe: jest.fn(),
     on: jest.fn(),
+    incr: jest.fn(),
   },
   CACHE_KEYS: {
     BOARD: (id: string) => `board:${id}`,
     BOARD_ACTIVITY: (id: string) => `board:${id}:activity`,
+    BOARD_ACTIVITIES: (id: string) => `board:${id}:activities`,
     USER_BOARDS: (id: string) => `user:${id}:boards`,
     BOARD_MEMBERS: (id: string) => `board:${id}:members`,
   },
@@ -59,6 +62,11 @@ jest.mock('@/lib/database/prisma', () => ({
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+    },
+    activity: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
     },
     // Add other models as needed
   },

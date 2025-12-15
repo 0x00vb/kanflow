@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/lib/auth/context'
 import { useApi, securityUtils } from '@/lib/api/client'
 import { useRealtimeBoard } from '@/hooks/useRealtimeBoard'
-import { useWebSocket } from '@/hooks/useWebSocket'
 import {
   DndContext,
   DragEndEvent,
@@ -57,7 +56,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
   const [error, setError] = useState<string | null>(null)
 
   // Real-time features
-  const { optimisticManager } = useWebSocket(boardId)
   const realtimeBoard = useRealtimeBoard(boardId)
   const unsubscribeTaskEvents = useRef<(() => void) | null>(null)
   const unsubscribeColumnEvents = useRef<(() => void) | null>(null)
@@ -71,24 +69,47 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
     })
   )
 
+  // Set up real-time subscriptions immediately when realtimeBoard is available
   useEffect(() => {
-    fetchBoardData()
-  }, [boardId])
+    // Set up subscriptions as soon as realtimeBoard is available
+    // (WebSocket client will handle queuing if not connected yet)
+    // Clean up any existing subscriptions first
+    if (unsubscribeTaskEvents.current) {
+      unsubscribeTaskEvents.current()
+    }
+    if (unsubscribeColumnEvents.current) {
+      unsubscribeColumnEvents.current()
+    }
+    if (unsubscribeBoardEvents.current) {
+      unsubscribeBoardEvents.current()
+    }
 
-  // Cleanup real-time subscriptions on unmount
-  useEffect(() => {
+    // Set up new subscriptions
+    unsubscribeTaskEvents.current = realtimeBoard.subscribeToTaskEvents(setTasks, setColumns)
+    unsubscribeColumnEvents.current = realtimeBoard.subscribeToColumnEvents(setColumns)
+    unsubscribeBoardEvents.current = realtimeBoard.subscribeToBoardEvents(setBoard)
+
+    // Cleanup function
     return () => {
       if (unsubscribeTaskEvents.current) {
         unsubscribeTaskEvents.current()
+        unsubscribeTaskEvents.current = null
       }
       if (unsubscribeColumnEvents.current) {
         unsubscribeColumnEvents.current()
+        unsubscribeColumnEvents.current = null
       }
       if (unsubscribeBoardEvents.current) {
         unsubscribeBoardEvents.current()
+        unsubscribeBoardEvents.current = null
       }
     }
-  }, [])
+  }, [realtimeBoard]) // Re-run when realtimeBoard changes
+
+  // Separate effect for initial data fetch
+  useEffect(() => {
+    fetchBoardData()
+  }, [boardId])
 
   const fetchBoardData = async () => {
     try {
@@ -124,20 +145,8 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
         })
         setTasks(allTasks)
 
-        // Set up real-time event subscriptions
-        if (unsubscribeTaskEvents.current) {
-          unsubscribeTaskEvents.current()
-        }
-        if (unsubscribeColumnEvents.current) {
-          unsubscribeColumnEvents.current()
-        }
-        if (unsubscribeBoardEvents.current) {
-          unsubscribeBoardEvents.current()
-        }
-
-        unsubscribeTaskEvents.current = realtimeBoard.subscribeToTaskEvents(setTasks, setColumns)
-        unsubscribeColumnEvents.current = realtimeBoard.subscribeToColumnEvents(setColumns)
-        unsubscribeBoardEvents.current = realtimeBoard.subscribeToBoardEvents(setBoard)
+        // Note: Real-time subscriptions are now set up immediately on mount
+        // in a separate useEffect to prevent missing events
       } else {
         setError(boardResult.error || 'Failed to fetch board')
       }
@@ -159,7 +168,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
       setError(null)
 
       // Sanitize input for security
-      // The API client will automatically remove empty assigneeId values
       const sanitizedData: any = {
         title: securityUtils.sanitizeInput(taskData.title.trim()),
         priority: taskData.priority,
@@ -172,7 +180,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
       }
 
       // Include assigneeId only if it's a valid non-empty UUID string
-      // Empty strings will be removed by the API client's cleanData function
       if (taskData.assigneeId && taskData.assigneeId.trim()) {
         sanitizedData.assigneeId = taskData.assigneeId.trim()
       }
@@ -182,37 +189,16 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
         sanitizedData.dueDate = new Date(taskData.dueDate).toISOString()
       }
 
-      // Generate optimistic task ID
-      const optimisticTaskId = `temp-task-${Date.now()}-${Math.random()}`
+      // Create task on server first
+      const result = await api.post(`/api/columns/${selectedColumnId}/tasks`, sanitizedData)
 
-      // Create optimistic task for immediate UI update
-      const optimisticTask: Task = {
-        id: optimisticTaskId,
-        title: sanitizedData.title,
-        description: sanitizedData.description,
-        assigneeId: sanitizedData.assigneeId,
-        dueDate: sanitizedData.dueDate,
-        priority: sanitizedData.priority,
-        labels: sanitizedData.labels,
-        columnId: selectedColumnId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+      if (result.success) {
+        // Update UI with server response
+        const newTask = result.data
+        setTasks(prevTasks => [...prevTasks, newTask])
+      } else {
+        setError(result.error || 'Failed to create task')
       }
-
-      // Apply optimistic update with conflict resolution
-      await optimisticManager.applyOptimisticUpdate(
-        `task-create-${optimisticTaskId}`,
-        optimisticTask,
-        () => api.post(`/api/columns/${selectedColumnId}/tasks`, sanitizedData),
-        () => {
-          // Rollback: Remove the optimistic task from UI
-          setTasks(prevTasks => prevTasks.filter(task => task.id !== optimisticTaskId))
-        },
-        optimisticTaskId,
-        'create'
-      )
-
-      // On success, the real-time events will update the UI with the actual task data
 
     } catch (error) {
       console.error('Error creating task:', error)
@@ -240,14 +226,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
     try {
       setError(null)
 
-      // Get current task for rollback
-      const currentTask = tasks.find(t => t.id === taskId)
-      if (!currentTask) {
-        throw new Error('Task not found')
-      }
-
       // Sanitize input for security and handle empty values
-      // Note: API expects string format for dueDate, not Date object
       const sanitizedUpdates: any = {}
 
       if (updates.title !== undefined) {
@@ -285,22 +264,18 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
         }
       }
 
-      // Apply optimistic update with conflict resolution
-      await optimisticManager.applyOptimisticUpdate(
-        `task-update-${taskId}-${Date.now()}`,
-        { ...currentTask, ...sanitizedUpdates },
-        () => api.put(`/api/tasks/${taskId}`, sanitizedUpdates),
-        () => {
-          // Rollback: Restore original task state
-          setTasks(prevTasks => prevTasks.map(task =>
-            task.id === taskId ? currentTask : task
-          ))
-        },
-        taskId,
-        'update'
-      )
+      // Update task on server first
+      const result = await api.put(`/api/tasks/${taskId}`, sanitizedUpdates)
 
-      // On success, the real-time events will update the UI with the actual task data
+      if (result.success) {
+        // Update UI with server response
+        const updatedTask = result.data
+        setTasks(prevTasks => prevTasks.map(task =>
+          task.id === taskId ? updatedTask : task
+        ))
+      } else {
+        setError(result.error || 'Failed to update task')
+      }
 
     } catch (error) {
       console.error('Error updating task:', error)
@@ -311,10 +286,13 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
   const handleDeleteTask = async (taskId: string) => {
     try {
       setError(null)
+
+      // Delete task on server first
       const result = await api.delete(`/api/tasks/${taskId}`)
 
       if (result.success) {
-        await fetchBoardData() // Refresh board data
+        // Remove task from UI
+        setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId))
       } else {
         setError(result.error || 'Failed to delete task')
       }
@@ -437,39 +415,22 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
     if (task.columnId === targetColumn.id) return
 
     try {
-      // Store original column for rollback
-      const originalColumnId = task.columnId
-      console.log('🚀 Starting task move:', { taskId, fromColumn: originalColumnId, toColumn: targetColumn.id })
+      // Move task on server first
+      const result = await api.put(`/api/tasks/${taskId}`, {
+        columnId: targetColumn.id,
+      })
 
-      // Apply optimistic update with conflict resolution
-      await optimisticManager.applyOptimisticUpdate(
-        `task-move-${taskId}-${Date.now()}`,
-        { ...task, columnId: targetColumn.id },
-        () => api.put(`/api/tasks/${taskId}`, {
-          columnId: targetColumn.id,
-        }),
-        () => {
-          // Rollback: Move task back to original column
-          console.log('🔄 Rolling back task move due to error')
-          setTasks(prevTasks => prevTasks.map(t =>
-            t.id === taskId ? { ...t, columnId: originalColumnId } : t
-          ))
-        },
-        taskId,
-        'move',
-        () => {
-          // Optimistic state update: Move task to new column
-          console.log('⚡ Applying optimistic task move update')
-          setTasks(prevTasks => prevTasks.map(t =>
-            t.id === taskId ? { ...t, columnId: targetColumn.id } : t
-          ))
-        }
-      )
-
-      console.log('✅ Task move completed successfully')
-      // Real-time events will handle final UI synchronization if needed
+      if (result.success) {
+        // Update UI with server response
+        const updatedTask = result.data
+        setTasks(prevTasks => prevTasks.map(t =>
+          t.id === taskId ? updatedTask : t
+        ))
+      } else {
+        setError(result.error || 'Failed to move task')
+      }
     } catch (error) {
-      console.error('❌ Error moving task:', error)
+      console.error('Error moving task:', error)
       setError(error instanceof Error ? error.message : 'Failed to move task')
     }
   }

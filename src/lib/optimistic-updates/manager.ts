@@ -100,7 +100,11 @@ export class OptimisticUpdateManager {
     try {
       const result = await serverOperation()
 
-      if (result.success && result.data) {
+      // For delete operations, success is indicated by result.success (no data needed)
+      // For other operations, we need both success and data
+      const isSuccessful = result.success && (operation === 'delete' ? true : result.data !== undefined)
+
+      if (isSuccessful) {
         // Success - clear pending update
         this.clearPendingUpdate(operationId)
 
@@ -113,7 +117,8 @@ export class OptimisticUpdateManager {
         metrics.optimisticUpdatesTotal.inc({ operation, status: 'success' })
         metrics.optimisticUpdateLatency.observe({ operation }, latency / 1000)
 
-        return result.data
+        // For delete operations, return null, otherwise return the data
+        return operation === 'delete' ? null : result.data!
       } else {
         // Server rejected the update - rollback
         logger.warn({ operationId, error: result.error }, 'Server rejected optimistic update - rolling back')
@@ -302,7 +307,8 @@ export class OptimisticUpdateManager {
     // Deletion conflict strategy
     this.conflictResolver.registerStrategy('delete', {
       resolve: (incomingUpdate, pendingUpdate) => {
-        // Deletions should generally be accepted
+        // For deletions, accept the server confirmation
+        // The optimistic update should have already removed the item from UI
         return 'accept'
       }
     })

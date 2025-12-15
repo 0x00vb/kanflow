@@ -66,9 +66,10 @@ export const useRealtimeBoard = (boardId: string): UseRealtimeBoardReturn => {
     setTasks: React.Dispatch<React.SetStateAction<Task[]>>,
     setColumns?: React.Dispatch<React.SetStateAction<Column[]>>
   ): (() => void) => {
-    if (!isConnected) {
-      return () => {} // Return no-op if not connected
-    }
+    // Always set up subscriptions - WebSocket client will handle queuing if not connected
+    // if (!isConnected) {
+    //   return () => {} // Return no-op if not connected
+    // }
 
     const unsubscribers = [
       // Task created event
@@ -92,8 +93,23 @@ export const useRealtimeBoard = (boardId: string): UseRealtimeBoardReturn => {
             updated[existingIndex] = task
             return updated
           } else {
-            // Add new task
-            return [...prevTasks, task]
+            // Check if there's an optimistic task that should be replaced
+            // Look for tasks with similar properties that might be optimistic versions
+            const optimisticIndex = prevTasks.findIndex(t =>
+              t.title === task.title &&
+              t.columnId === task.columnId &&
+              t.id.startsWith('temp-task-') // Our optimistic task IDs start with this
+            )
+
+            if (optimisticIndex >= 0) {
+              // Replace the optimistic task with the real one
+              const updated = [...prevTasks]
+              updated[optimisticIndex] = task
+              return updated
+            } else {
+              // Add new task
+              return [...prevTasks, task]
+            }
           }
         })
 
@@ -169,15 +185,16 @@ export const useRealtimeBoard = (boardId: string): UseRealtimeBoardReturn => {
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe())
     }
-  }, [subscribe, isConnected, boardId, hasConflictingUpdate])
+  }, [subscribe, boardId, hasConflictingUpdate])
 
   // Subscribe to column-related real-time events
   const subscribeToColumnEvents = useCallback((
     setColumns: React.Dispatch<React.SetStateAction<Column[]>>
   ): (() => void) => {
-    if (!isConnected) {
-      return () => {} // Return no-op if not connected
-    }
+    // Always set up subscriptions - WebSocket client will handle queuing if not connected
+    // if (!isConnected) {
+    //   return () => {} // Return no-op if not connected
+    // }
 
     const unsubscribers = [
       // Column created event
@@ -251,15 +268,16 @@ export const useRealtimeBoard = (boardId: string): UseRealtimeBoardReturn => {
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe())
     }
-  }, [subscribe, isConnected, boardId, hasConflictingUpdate])
+  }, [subscribe, boardId, hasConflictingUpdate])
 
   // Subscribe to board-related real-time events
   const subscribeToBoardEvents = useCallback((
     setBoard: React.Dispatch<React.SetStateAction<Board | null>>
   ): (() => void) => {
-    if (!isConnected) {
-      return () => {} // Return no-op if not connected
-    }
+    // Always set up subscriptions - WebSocket client will handle queuing if not connected
+    // if (!isConnected) {
+    //   return () => {} // Return no-op if not connected
+    // }
 
     const unsubscribers = [
       // Board updated event
@@ -287,7 +305,7 @@ export const useRealtimeBoard = (boardId: string): UseRealtimeBoardReturn => {
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe())
     }
-  }, [subscribe, isConnected, boardId, hasConflictingUpdate])
+  }, [subscribe, boardId, hasConflictingUpdate])
 
   // Clean up pending updates on disconnect
   useEffect(() => {

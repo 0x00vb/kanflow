@@ -111,7 +111,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         <aside className={`bg-white border-r border-gray-200 transition-all duration-300 h-full ${
           sidebarCollapsed ? 'w-16' : 'w-64'
         }`}>
-          <nav className="p-4 space-y-2 h-full overflow-y-auto">
+          <nav className="p-4 space-y-2 h-[calc(100vh-64px)] overflow-y-auto">
             {!sidebarCollapsed && (
               <>
                 <div className="mb-6">

@@ -44,6 +44,7 @@ export interface TaskDetailModalProps {
   isOpen: boolean
   onClose: () => void
   task: TaskWithComments | null
+  boardId: string
   boardMembers: any[]
   currentUser: any
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void

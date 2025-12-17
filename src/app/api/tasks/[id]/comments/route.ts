@@ -7,6 +7,7 @@ import { withAuth, checkPermission } from '@/middleware/auth'
 import { logger } from '@/lib/logger'
 import { metrics } from '@/lib/metrics'
 import { createActivity } from '@/lib/activities'
+import { extractMentionedUserIds, createUserMap } from '@/lib/mentions/utils'
 
 // POST /api/tasks/[id]/comments - Add comment
 export const POST = withAuth(async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -66,12 +67,32 @@ export const POST = withAuth(async (request: NextRequest, context: { params: Pro
 
     const { content } = validationResult.data
 
-    // Create comment
+    // Get board members for mention resolution
+    const boardMembers = await prisma.boardMember.findMany({
+      where: { boardId: task.column.boardId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    })
+
+    // Create user map for mention resolution
+    const userMap = createUserMap(boardMembers.map(m => m.user))
+
+    // Extract mentioned user IDs
+    const mentionedUserIds = extractMentionedUserIds(content, userMap)
+
+    // Create comment with mentions
     const comment = await prisma.comment.create({
       data: {
         taskId,
         userId,
         content,
+        mentions: mentionedUserIds,
       },
       include: {
         user: {
@@ -84,6 +105,43 @@ export const POST = withAuth(async (request: NextRequest, context: { params: Pro
         },
       },
     })
+
+    // Create notifications for mentioned users
+    if (mentionedUserIds.length > 0) {
+      const notifications = mentionedUserIds
+        .filter(mentionedUserId => mentionedUserId !== userId) // Don't notify self
+        .map(mentionedUserId => ({
+          userId: mentionedUserId,
+          type: 'MENTION' as const,
+          title: `${comment.user.name} mentioned you in a comment`,
+          message: `"${content.length > 100 ? content.substring(0, 100) + '...' : content}"`,
+          data: {
+            commentId: comment.id,
+            taskId: taskId,
+            boardId: task.column.boardId,
+            mentionedBy: userId,
+          },
+        }))
+
+      if (notifications.length > 0) {
+        await prisma.notification.createMany({
+          data: notifications,
+        })
+
+        // Invalidate notification caches for mentioned users
+        for (const notification of notifications) {
+          await redisClient.del(CACHE_KEYS.USER_NOTIFICATIONS(notification.userId))
+          await redisClient.del(CACHE_KEYS.NOTIFICATIONS_COUNT(notification.userId))
+        }
+
+        logger.info({
+          userId,
+          taskId,
+          mentionedUserIds,
+          notificationCount: notifications.length
+        }, 'Created mention notifications')
+      }
+    }
 
     // Create activity record
     await createActivity({

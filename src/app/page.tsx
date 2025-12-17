@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth/context'
 import { LoginForm } from '@/components/forms/LoginForm'
 import { RegisterForm } from '@/components/forms/RegisterForm'
@@ -48,8 +49,20 @@ const LandingPage = () => {
 
 // Dashboard page component for authenticated users
 const DashboardPage = () => {
+  const searchParams = useSearchParams()
   const [currentView, setCurrentView] = useState<'home' | 'board' | 'recent' | 'team'>('home')
   const [currentBoardId, setCurrentBoardId] = useState<string>('')
+
+  // Handle boardId from URL query parameters (for direct links)
+  useEffect(() => {
+    const boardId = searchParams.get('boardId')
+    if (boardId) {
+      setCurrentBoardId(boardId)
+      setCurrentView('board')
+      // Clean up the URL by removing the query parameter
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [searchParams])
 
   const handleBoardSelect = (boardId: string) => {
     setCurrentBoardId(boardId)

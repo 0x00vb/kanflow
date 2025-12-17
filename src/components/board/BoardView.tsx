@@ -567,6 +567,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ boardId, onBack }) => {
           isOpen={isTaskDetailModalOpen}
           onClose={() => setIsTaskDetailModalOpen(false)}
           task={selectedTask}
+          boardId={boardId}
           boardMembers={boardMembers}
           currentUser={user}
           onUpdateTask={handleUpdateTask}

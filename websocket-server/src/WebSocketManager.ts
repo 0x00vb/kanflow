@@ -207,6 +207,17 @@ export class WebSocketManager {
   }
 
   /**
+   * Send message to all connections of a specific user
+   */
+  sendToUser(userId: string, message: WSMessage): void {
+    this.clients.forEach(client => {
+      if (client.userId === userId && client.ws.readyState === WebSocket.OPEN) {
+        this.sendToClient(client.ws, message)
+      }
+    })
+  }
+
+  /**
    * Publish message to Redis for cross-instance communication
    */
   private async publishToRedis(boardId: string, message: WSMessage): Promise<void> {

@@ -50,6 +50,14 @@ export const CACHE_KEYS = {
   BOARD_MEMBERS: (id: string) => `board:${id}:members`,
   USER_SEARCH: (userId: string, query: string, boardId?: string) =>
     `user_search:${userId}:${query}:${boardId || 'global'}`,
+  TEMPLATES_PREFIX: 'templates',
+  TEMPLATES: (category?: string, limit?: number, offset?: number) =>
+    `templates:${category || 'all'}:${limit || 20}:${offset || 0}`,
+  TEMPLATE: (id: string) => `template:${id}`,
+  USER_NOTIFICATIONS: (userId: string) => `user:${userId}:notifications`,
+  NOTIFICATIONS_COUNT: (userId: string) => `user:${userId}:notifications:count`,
+    SEARCH_RESULTS: (userId: string, q: string, type?: string, boardId?: string, assigneeId?: string, priority?: string, dueDateFrom?: string, dueDateTo?: string, labels?: string, limit?: number, offset?: number) =>
+      `search:${userId}:${q || ''}:${type || 'all'}:${boardId || 'all'}:${assigneeId || 'all'}:${priority || 'all'}:${dueDateFrom || 'all'}:${dueDateTo || 'all'}:${labels || 'all'}:${limit || 20}:${offset || 0}`,
 } as const
 
 // Cache TTL constants (in seconds)
@@ -61,6 +69,11 @@ export const CACHE_TTL = {
   USER_BOARDS: 600, // 10 minutes
   BOARD_MEMBERS: 900, // 15 minutes
   USER_SEARCH: 300, // 5 minutes
+  TEMPLATES: 3600, // 1 hour (templates change infrequently)
+  TEMPLATE: 1800, // 30 minutes
+  USER_NOTIFICATIONS: 60, // 1 minute (notifications change frequently)
+  NOTIFICATIONS_COUNT: 30, // 30 seconds
+  SEARCH_RESULTS: 300, // 5 minutes (search results can be cached briefly)
 } as const
 
 // Pub/Sub channel constants

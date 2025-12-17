@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { Board, Activity } from '@/types'
+// import { TemplateSelector } from '@/components/board/TemplateSelector' // Temporarily disabled
 
 interface BoardCardProps {
   board: Board & { _count?: { columns: number; members: number } }
@@ -39,7 +40,7 @@ const BoardCard: React.FC<BoardCardProps> = ({ board, onClick }) => (
 interface CreateBoardModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreateBoard: (board: { title: string; description?: string; isPublic: boolean }) => void
+  onCreateBoard: (board: { title: string; description?: string; isPublic: boolean; templateId?: string }) => void
 }
 
 const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onClose, onCreateBoard }) => {
@@ -47,8 +48,15 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onClose, on
     title: '',
     description: '',
     isPublic: false,
+    templateId: undefined as string | undefined,
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [currentStep, setCurrentStep] = useState<'template' | 'details'>('template')
+
+  const handleTemplateSelect = (templateId?: string) => {
+    setFormData(prev => ({ ...prev, templateId }))
+    setCurrentStep('details')
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,7 +64,8 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onClose, on
 
     try {
       await onCreateBoard(formData)
-      setFormData({ title: '', description: '', isPublic: false })
+      setFormData({ title: '', description: '', isPublic: false, templateId: undefined })
+      setCurrentStep('template')
       onClose()
     } catch (error) {
       console.error('Error creating board:', error)
@@ -65,58 +74,112 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onClose, on
     }
   }
 
+  const handleBack = () => {
+    setCurrentStep('template')
+  }
+
+  const getModalTitle = () => {
+    switch (currentStep) {
+      case 'template':
+        return 'Choose a Template'
+      case 'details':
+        return 'Board Details'
+      default:
+        return 'Create New Board'
+    }
+  }
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create New Board">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Board Title *
-          </label>
-          <input
-            type="text"
-            value={formData.title}
-            onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:border-primary-blue"
-            placeholder="e.g., Product Roadmap"
-            required
-          />
+    <Modal isOpen={isOpen} onClose={onClose} title={getModalTitle()} size="xl">
+      <div className="space-y-6">
+        {/* Step Indicator */}
+        <div className="flex items-center space-x-4">
+          <div className={`flex items-center ${currentStep === 'template' ? 'text-primary-blue' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+              currentStep === 'template' ? 'bg-primary-blue text-white' : 'bg-gray-200 text-gray-600'
+            }`}>
+              1
+            </div>
+            <span className="ml-2 text-sm font-medium">Template</span>
+          </div>
+          <div className={`flex-1 h-px ${currentStep === 'details' ? 'bg-primary-blue' : 'bg-gray-200'}`} />
+          <div className={`flex items-center ${currentStep === 'details' ? 'text-primary-blue' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+              currentStep === 'details' ? 'bg-primary-blue text-white' : 'bg-gray-200 text-gray-600'
+            }`}>
+              2
+            </div>
+            <span className="ml-2 text-sm font-medium">Details</span>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Description
-          </label>
-          <textarea
-            value={formData.description}
-            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:border-primary-blue"
-            placeholder="Brief description of the board..."
-            rows={3}
-          />
-        </div>
+        {/* Step Content */}
+        {/* Temporarily disabled template selection for notification fix */}
+        {false && currentStep === 'template' ? (
+          <div>
+            {/* <TemplateSelector
+              selectedTemplateId={formData.templateId}
+              onTemplateSelect={handleTemplateSelect}
+            /> */}
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Board Title *
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:border-primary-blue"
+                placeholder="e.g., Product Roadmap"
+                required
+              />
+            </div>
 
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="isPublic"
-            checked={formData.isPublic}
-            onChange={(e) => setFormData(prev => ({ ...prev, isPublic: e.target.checked }))}
-            className="rounded border-gray-300 text-primary-blue focus:ring-primary-blue"
-          />
-          <label htmlFor="isPublic" className="ml-2 text-sm text-gray-700">
-            Make this board public
-          </label>
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:border-primary-blue"
+                placeholder="Brief description of the board..."
+                rows={3}
+              />
+            </div>
 
-        <div className="flex justify-end space-x-3 pt-4">
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" isLoading={isLoading}>
-            Create Board
-          </Button>
-        </div>
-      </form>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="isPublic"
+                checked={formData.isPublic}
+                onChange={(e) => setFormData(prev => ({ ...prev, isPublic: e.target.checked }))}
+                className="rounded border-gray-300 text-primary-blue focus:ring-primary-blue"
+              />
+              <label htmlFor="isPublic" className="ml-2 text-sm text-gray-700">
+                Make this board public
+              </label>
+            </div>
+
+            <div className="flex justify-between pt-4">
+              <Button type="button" variant="secondary" onClick={handleBack}>
+                Back
+              </Button>
+              <div className="flex space-x-3">
+                <Button type="button" variant="secondary" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button type="submit" isLoading={isLoading}>
+                  Create Board
+                </Button>
+              </div>
+            </div>
+          </form>
+        )}
+      </div>
     </Modal>
   )
 }
@@ -156,15 +219,20 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onBoardSelect, sho
     }
   }
 
-  const handleCreateBoard = async (boardData: { title: string; description?: string; isPublic: boolean }) => {
+  const handleCreateBoard = async (boardData: { title: string; description?: string; isPublic: boolean; templateId?: string }) => {
     try {
       setError(null)
 
       // Sanitize input for security
-      const sanitizedData = {
+      const sanitizedData: any = {
         title: securityUtils.sanitizeInput(boardData.title),
         description: boardData.description ? securityUtils.sanitizeInput(boardData.description) : undefined,
         isPublic: boardData.isPublic,
+      }
+
+      // Include templateId if provided
+      if (boardData.templateId) {
+        sanitizedData.templateId = boardData.templateId
       }
 
       const result = await api.post('/api/boards', sanitizedData)

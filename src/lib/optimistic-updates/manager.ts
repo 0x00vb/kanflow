@@ -59,7 +59,7 @@ export class OptimisticUpdateManager {
     resourceId?: string,
     operation?: string,
     stateUpdate?: () => void
-  ): Promise<T> {
+  ): Promise<T | null> {
     const update: PendingUpdate = {
       operationId,
       optimisticData,
@@ -118,7 +118,7 @@ export class OptimisticUpdateManager {
         metrics.optimisticUpdateLatency.observe({ operation }, latency / 1000)
 
         // For delete operations, return null, otherwise return the data
-        return operation === 'delete' ? null : result.data!
+        return operation === 'delete' ? null : (result.data || optimisticData)
       } else {
         // Server rejected the update - rollback
         logger.warn({ operationId, error: result.error }, 'Server rejected optimistic update - rolling back')

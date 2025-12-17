@@ -68,6 +68,37 @@ export const commentSchema = z.object({
   content: z.string().min(1, 'Comment cannot be empty').max(1000, 'Comment too long'),
 })
 
+// Template schemas
+export const templateSchema = z.object({
+  name: z.string().min(1, 'Template name is required').max(200, 'Name too long'),
+  description: z.string().max(1000, 'Description too long').optional(),
+  category: z.enum(['KANBAN', 'SCRUM', 'PRODUCT_ROADMAP', 'BUG_TRACKING', 'PERSONAL', 'TEAM']),
+  columns: z.array(z.object({
+    title: z.string().min(1, 'Column title is required'),
+    position: z.number().int().min(0),
+  })).min(1, 'At least one column is required'),
+  sampleTasks: z.array(z.object({
+    title: z.string().min(1, 'Task title is required'),
+    description: z.string().optional(),
+    priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
+    labels: z.array(z.string()).optional(),
+  })).optional(),
+})
+
+// Search schemas
+export const searchFilterSchema = z.object({
+  q: z.string().max(100, 'Search query too long').optional(),
+  type: z.enum(['boards', 'tasks', 'users']).optional(),
+  boardId: cuidSchema.optional(),
+  assigneeId: cuidSchema.optional(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
+  dueDateFrom: z.string().datetime('Invalid date format').optional(),
+  dueDateTo: z.string().datetime('Invalid date format').optional(),
+  labels: z.array(z.string()).optional(),
+  limit: z.number().int().min(1).max(50).default(20),
+  offset: z.number().int().min(0).default(0),
+})
+
 // Activity schemas
 export const activityFilterSchema = z.object({
   type: z.enum([
@@ -101,6 +132,8 @@ export type CreateColumnInput = z.infer<typeof columnSchema>
 export type CreateTaskInput = z.infer<typeof taskSchema>
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>
 export type CreateCommentInput = z.infer<typeof commentSchema>
+export type CreateTemplateInput = z.infer<typeof templateSchema>
+export type SearchFilterInput = z.infer<typeof searchFilterSchema>
 export type ActivityFilterInput = z.infer<typeof activityFilterSchema>
 export type WSMessage = z.infer<typeof wsMessageSchema>
 export type PaginationInput = z.infer<typeof paginationSchema>

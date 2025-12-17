@@ -127,6 +127,13 @@ export const POST = withAuth(async (request: NextRequest) => {
 
     const { title, description, isPublic } = validationResult.data
 
+    // Prepare default column data
+    const columnsToCreate = [
+      { title: 'To Do', position: 0 },
+      { title: 'In Progress', position: 1 },
+      { title: 'Done', position: 2 },
+    ]
+
     // Create board and add creator as owner
     const board = await prisma.board.create({
       data: {
@@ -139,13 +146,9 @@ export const POST = withAuth(async (request: NextRequest) => {
             role: 'OWNER',
           },
         },
-        // Create default columns
+        // Create columns from template or defaults
         columns: {
-          create: [
-            { title: 'To Do', position: 0 },
-            { title: 'In Progress', position: 1 },
-            { title: 'Done', position: 2 },
-          ],
+          create: columnsToCreate,
         },
       },
       include: {

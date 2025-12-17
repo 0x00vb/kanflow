@@ -3,12 +3,15 @@
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { MentionInput } from '@/components/mentions/MentionInput'
+import { MentionDisplay } from '@/components/mentions/MentionDisplay'
 import { TaskDetailModalProps } from '../types'
 
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   isOpen,
   onClose,
   task,
+  boardId,
   boardMembers,
   currentUser,
   onUpdateTask,
@@ -385,12 +388,12 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   </span>
                 </div>
                 <div className="flex-1">
-                  <textarea
+                  <MentionInput
                     value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:border-primary-blue resize-none"
-                    rows={3}
-                    placeholder="Add a comment..."
+                    onChange={setNewComment}
+                    boardId={boardId}
+                    placeholder="Add a comment... Type @ to mention someone"
+                    disabled={isLoading}
                   />
                   {newComment.trim() && (
                     <div className="flex justify-end mt-2">
@@ -423,9 +426,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             {new Date(comment.createdAt).toLocaleString()}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                          {comment.content}
-                        </p>
+                        <MentionDisplay
+                          text={comment.content}
+                          mentionedUsers={boardMembers.map(m => m.user)}
+                          className="text-sm"
+                        />
                       </div>
                     </div>
                   </div>

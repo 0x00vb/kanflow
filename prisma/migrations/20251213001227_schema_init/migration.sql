@@ -1,4 +1,7 @@
 -- CreateEnum
+CREATE TYPE "NotificationType" AS ENUM ('MENTION', 'TASK_ASSIGNED', 'TASK_DUE_SOON', 'BOARD_INVITATION', 'COMMENT_ADDED');
+
+-- CreateEnum
 CREATE TYPE "MemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER');
 
 -- CreateEnum
@@ -12,6 +15,7 @@ CREATE TABLE "users" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
     "avatar" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -73,6 +77,7 @@ CREATE TABLE "comments" (
     "taskId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "content" TEXT NOT NULL,
+    "mentions" TEXT[],
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "comments_pkey" PRIMARY KEY ("id")
@@ -91,11 +96,49 @@ CREATE TABLE "activities" (
     CONSTRAINT "activities_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "notifications" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "type" "NotificationType" NOT NULL,
+    "title" TEXT NOT NULL,
+    "message" TEXT NOT NULL,
+    "data" JSONB,
+    "read" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "notifications_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "users_name_idx" ON "users"("name");
+
+-- CreateIndex
+CREATE INDEX "users_email_idx" ON "users"("email");
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "board_members_boardId_userId_key" ON "board_members"("boardId", "userId");
+
+-- CreateIndex
+CREATE INDEX "activities_boardId_createdAt_idx" ON "activities"("boardId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "activities_boardId_type_createdAt_idx" ON "activities"("boardId", "type", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "activities_userId_createdAt_idx" ON "activities"("userId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "activities_taskId_idx" ON "activities"("taskId");
+
+-- CreateIndex
+CREATE INDEX "notifications_userId_createdAt_idx" ON "notifications"("userId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "notifications_userId_read_createdAt_idx" ON "notifications"("userId", "read", "createdAt");
 
 -- AddForeignKey
 ALTER TABLE "board_members" ADD CONSTRAINT "board_members_boardId_fkey" FOREIGN KEY ("boardId") REFERENCES "boards"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -126,3 +169,6 @@ ALTER TABLE "activities" ADD CONSTRAINT "activities_userId_fkey" FOREIGN KEY ("u
 
 -- AddForeignKey
 ALTER TABLE "activities" ADD CONSTRAINT "activities_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "tasks"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -18,10 +18,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  boards      BoardMember[]
-  tasks       Task[]
-  comments    Comment[]
-  activities  Activity[]
+  boards        BoardMember[]
+  tasks         Task[]
+  comments      Comment[]
+  activities    Activity[]
+  notifications Notification[]
 
   // Full-text search indexes for user search functionality
   @@index([name])
@@ -90,11 +91,12 @@ model Task {
 }
 
 model Comment {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   taskId    String
   userId    String
   content   String
-  createdAt DateTime @default(now())
+  mentions  String[]  // Array of mentioned user IDs
+  createdAt DateTime   @default(now())
 
   task    Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -122,6 +124,31 @@ model Activity {
   @@index([taskId])
 
   @@map("activities")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?            // Additional context
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, read, createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  MENTION
+  TASK_ASSIGNED
+  TASK_DUE_SOON
+  BOARD_INVITATION
+  COMMENT_ADDED
 }
 
 enum MemberRole {
